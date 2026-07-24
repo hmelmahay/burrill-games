@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0d1026;
+  --color-card: #171b3a;
+  --color-cardhover: #1d2247;
+  --color-line: #2a3060;
+  --color-fog: #9aa0c8;
+  --color-glow: #ff9f1c;
+  --color-violet: #7c5cff;
+  --color-win: #2ecc71;
+  --color-lose: #e74c3c;
+}
+
+body {
+  background: var(--color-ink);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124, 92, 255, 0.22), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(255, 159, 28, 0.1), transparent);
+  background-attachment: fixed;
+  color: #f2f3ff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop-in { animation: popIn 0.25s ease-out; }
