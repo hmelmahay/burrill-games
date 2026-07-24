@@ -43,6 +43,12 @@ const GAMES = [
     name: "Hot Take",
     desc: "Who's most likely to sleep through three alarms? Vote for a player, score by reading the room.",
   },
+  {
+    slug: "doodle",
+    icon: "🎨",
+    name: "Doodle Dash",
+    desc: "One player sketches live on their phone; everyone races to guess it. Artist scores per correct guess.",
+  },
 ];
 
 export default function Home() {

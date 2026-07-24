@@ -91,6 +91,16 @@ export function useRoom(game: string, code: string) {
             ss.some((s) => s.id === (payload.new as Sub).id) ? ss : [...ss, payload.new as Sub],
           ),
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "arcade_subs", filter: `room_id=eq.${roomId}` },
+        (payload) =>
+          setSubs((ss) =>
+            ss.map((s) =>
+              s.id === (payload.new as Sub).id ? { ...s, ...(payload.new as Sub) } : s,
+            ),
+          ),
+      )
       .subscribe();
     // Backstop poll: Realtime very occasionally drops events on phone lock/unlock.
     const poll = setInterval(refresh, 5000);
