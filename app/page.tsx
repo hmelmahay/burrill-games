@@ -49,6 +49,12 @@ const GAMES = [
     name: "Doodle Dash",
     desc: "One player sketches live on their phone; everyone races to guess it. Artist scores per correct guess.",
   },
+  {
+    slug: "vibe",
+    icon: "🌡️",
+    name: "Vibe Check",
+    desc: "The psychic hides a spot on a scale — Hot ↔ Cold — and gives one clue. Slide your dial to where it lands.",
+  },
 ];
 
 export default function Home() {
