@@ -7,7 +7,15 @@ export const supabase = createClient(url, anon, {
   realtime: { params: { eventsPerSecond: 10 } },
 });
 
-export type GameKind = "quiz" | "majority" | "scatter";
+export type GameKind =
+  | "quiz"
+  | "majority"
+  | "scatter"
+  | "emoji"
+  | "ballpark"
+  | "twotruths"
+  | "hottake"
+  | "doodle";
 
 export type Room = {
   id: string;
@@ -41,6 +49,8 @@ export type Sub = {
 
 // Round content per game
 export type QuizRound = { q: string; choices: string[]; answer: number; cat: string };
+export type EmojiRound = { emoji: string; answer: string; alts: string[]; kind: string };
+export type BallparkRound = { q: string; answer: number; unit: string };
 export type MajorityRound = { a: string; b: string };
 export type ScatterRound = { letter: string; categories: string[] };
 

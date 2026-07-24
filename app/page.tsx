@@ -19,6 +19,30 @@ const GAMES = [
     name: "Scatter Sprint",
     desc: "One letter, five categories, one minute. Unique answers score — duplicates cancel out.",
   },
+  {
+    slug: "emoji",
+    icon: "🎬",
+    name: "Emoji Cinema",
+    desc: "A movie, show, or song told entirely in emoji. Type your guess — typos forgiven, speed rewarded.",
+  },
+  {
+    slug: "ballpark",
+    icon: "🎯",
+    name: "Ballpark",
+    desc: "Nobody knows how tall the Eiffel Tower is. Closest guess takes the round.",
+  },
+  {
+    slug: "twotruths",
+    icon: "🤥",
+    name: "Two Truths & a Lie",
+    desc: "Each round someone writes two truths and a lie about themselves. Spot the lie — or fool the room.",
+  },
+  {
+    slug: "hottake",
+    icon: "🔥",
+    name: "Hot Take",
+    desc: "Who's most likely to sleep through three alarms? Vote for a player, score by reading the room.",
+  },
 ];
 
 export default function Home() {
