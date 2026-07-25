@@ -62,8 +62,8 @@ export default function Home() {
     <main className="flex flex-1 flex-col items-center gap-8 p-6 pt-12">
       <div className="text-center">
         <h1 className="text-4xl font-extrabold tracking-tight">
-          <span className="text-glow">Burrill</span>{" "}
-          <span className="text-violet">Arcade Games</span>
+          <span className="text-glow">The Burr</span>{" "}
+          <span className="text-violet">&amp; Spill</span>
         </h1>
         <p className="text-fog mt-2">Host a game and share the code, or join one.</p>
       </div>
@@ -95,7 +95,7 @@ export default function Home() {
         ))}
       </div>
       <a href="https://burrill-arcade.vercel.app" className="text-fog text-sm underline">
-        ← Back to The Burrill Arcade
+        ← Back to The Burr &amp; Spill
       </a>
     </main>
   );

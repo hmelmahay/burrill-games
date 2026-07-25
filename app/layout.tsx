@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Burrill Arcade Games",
-  description: "Quiz Rush, Majority Rules, and Scatter Sprint — phones as controllers",
+  title: "The Burr & Spill — Games",
+  description: "Party games from Steve Burrill & Mike Spille — phones as controllers",
 };
 
 export const viewport = {
