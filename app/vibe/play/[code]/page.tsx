@@ -7,6 +7,7 @@ import { useRoom } from "@/lib/useRoom";
 import { Shell, Leaderboard } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { VibeRound, VibePhaseData } from "@/app/vibe/constants";
+import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
 
 export default function VibePlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -201,6 +202,18 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
               {round.left} ← → {round.right}
             </div>
           </div>
+          <Dial
+            marks={(phaseData.results ?? [])
+              .filter((r) => r.guess != null)
+              .map((r, i) => ({
+                pos: r.guess!,
+                label: r.player_id === playerId ? `${r.name} (you)` : r.name,
+                color: MARK_COLORS[i % MARK_COLORS.length],
+              }))}
+            target={phaseData.target}
+            left={round.left}
+            right={round.right}
+          />
           {myResult && (
             <div
               className={`rounded-2xl p-5 text-center pop-in ${

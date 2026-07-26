@@ -7,6 +7,7 @@ import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
+import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botDialGuess } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
 import { VIBE_SCALES } from "@/lib/content/vibes";
@@ -18,45 +19,6 @@ import {
   VibeResult,
   VibePhaseData,
 } from "@/app/vibe/constants";
-
-export function Dial({
-  marks,
-  target,
-  left,
-  right,
-}: {
-  marks: { pos: number; label: string; color: string }[];
-  target?: number;
-  left: string;
-  right: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="relative h-24 rounded-xl bg-gradient-to-r from-violet/50 via-card to-glow/50 border border-line overflow-visible">
-        {target != null && (
-          <div
-            className="absolute top-0 bottom-0 w-1.5 bg-win rounded"
-            style={{ left: `calc(${target}% - 3px)` }}
-          />
-        )}
-        {marks.map((m, i) => (
-          <div
-            key={i}
-            className="absolute flex flex-col items-center"
-            style={{ left: `${m.pos}%`, top: `${8 + (i % 3) * 26}px`, transform: "translateX(-50%)" }}
-          >
-            <div className="w-3 h-3 rounded-full border-2 border-white" style={{ background: m.color }} />
-            <span className="text-[10px] font-bold whitespace-nowrap">{m.label}</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between text-sm font-bold">
-        <span>← {left}</span>
-        <span>{right} →</span>
-      </div>
-    </div>
-  );
-}
 
 export default function VibeHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -207,10 +169,9 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
 
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
-  const markColors = ["#e21b3c", "#1368ce", "#d89e00", "#26890c", "#7c5cff", "#ff9f1c"];
   const revealMarks = (phaseData.results ?? [])
     .filter((r) => r.guess != null)
-    .map((r, i) => ({ pos: r.guess!, label: r.name, color: markColors[i % markColors.length] }));
+    .map((r, i) => ({ pos: r.guess!, label: r.name, color: MARK_COLORS[i % MARK_COLORS.length] }));
 
   return (
     <Shell title="Vibe Check · host" icon="🌡️">
