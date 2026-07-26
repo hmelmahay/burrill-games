@@ -22,7 +22,8 @@ import {
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
-import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizChoice, botQuizDelayMs } from "@/lib/bots";
+import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizPick, botBlindChoice, botQuizDelayMs } from "@/lib/bots";
+import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
 
 export default function QuizHost({ params }: { params: Promise<{ code: string }> }) {
@@ -45,13 +46,29 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
   const [botErr, setBotErr] = useState<string | null>(null);
   const roundSubs = subs.filter((s) => s.round_idx === room?.round_idx);
 
+  // Bots answer the question themselves — they never see round.answer. With
+  // no answer service they pick at random rather than peeking.
+  const { ready: botsReady, answer: botAnswer } = useBotAnswer<{ choice: number }>({
+    room,
+    active: room?.phase === "question" && !!round,
+    tvRef,
+    ask:
+      room?.phase === "question" && round
+        ? { kind: "quiz", question: round.q, choices: round.choices }
+        : null,
+  });
+
   useBotSubmissions({
     room,
     players,
     roundSubs,
-    active: room?.phase === "question" && !!round,
+    active: room?.phase === "question" && !!round && botsReady,
     tvRef,
-    makePayload: (bot) => ({ choice: botQuizChoice(round!.answer, botSkill(bot.id)) }),
+    makePayload: (bot) => ({
+      choice: botAnswer
+        ? botQuizPick(botAnswer.choice, round!.choices.length, botSkill(bot.id))
+        : botBlindChoice(round!.choices.length),
+    }),
     delayMs: (bot) => botQuizDelayMs(botSkill(bot.id), answerSeconds),
   });
 
@@ -241,6 +258,11 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               );
             })}
           </div>
+          {botsReady && !botAnswer && botsOf(players).length > 0 && (
+            <p className="text-lose text-center text-xs">
+              Bots are answering at random — the answer service is unavailable.
+            </p>
+          )}
           <BigBtn onClick={reveal} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
             {left === 0 ? "Time! Reveal answers" : "Reveal early"}
           </BigBtn>
