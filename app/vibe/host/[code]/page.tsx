@@ -7,7 +7,8 @@ import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
-import { addBot, removeBot, humansOf, botsOf, botSkill, botDelayMs, botDialGuess } from "@/lib/bots";
+import { addBot, removeBot, humansOf, botsOf, botSkill, botDialGuess } from "@/lib/bots";
+import { useBotSubmissions } from "@/lib/useBots";
 import { VIBE_SCALES } from "@/lib/content/vibes";
 import {
   pointsForDistance,
@@ -65,7 +66,6 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
   const advancingRef = useRef<string | null>(null);
 
   const [botErr, setBotErr] = useState<string | null>(null);
-  const botSubKeys = useRef(new Set<string>());
   const settings = (room?.settings ?? {}) as { cycles?: number };
   const rounds = (room?.rounds ?? []) as VibeRound[];
   const round = room ? rounds[room.round_idx] : undefined;
@@ -120,49 +120,15 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [psychicSub?.id, room?.phase]);
 
-  // Bot brains: during guessing, each bot without a dial in yet slides one
-  // after a humanlike pause. Runs only on the real host tab (not /tv), and
-  // re-arms safely after a refresh because it keys off missing subs.
-  useEffect(() => {
-    if (tvRef.current) return;
-    if (!room || room.phase !== "guess" || !round) return;
-    const keys = botSubKeys.current;
-    const timers: { t: ReturnType<typeof setTimeout>; key: string; fired: boolean }[] = [];
-    for (const bot of botsOf(players)) {
-      if (bot.id === round.psychic_id) continue;
-      if (roundSubs.some((s) => s.player_id === bot.id)) continue;
-      const key = `${room.round_idx}-${bot.id}`;
-      if (keys.has(key)) continue;
-      keys.add(key);
-      const entry = {
-        key,
-        fired: false,
-        t: setTimeout(() => {
-          entry.fired = true;
-          supabase
-            .from("arcade_subs")
-            .insert({
-              room_id: room.id,
-              player_id: bot.id,
-              round_idx: room.round_idx,
-              payload: { guess: botDialGuess(round.target, botSkill(bot.id)) },
-            })
-            .then(({ error: e }) => {
-              // 23505 = already submitted (double-fire race) — harmless.
-              if (e && e.code !== "23505") keys.delete(key);
-            });
-        }, botDelayMs()),
-      };
-      timers.push(entry);
-    }
-    return () =>
-      timers.forEach((e) => {
-        clearTimeout(e.t);
-        // Release unfired keys so a re-render reschedules instead of stranding the bot.
-        if (!e.fired) keys.delete(e.key);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.phase, room?.round_idx, players.length, roundSubs.length]);
+  useBotSubmissions({
+    room,
+    players,
+    roundSubs,
+    active: room?.phase === "guess" && !!round,
+    tvRef,
+    excludeId: round?.psychic_id,
+    makePayload: (bot) => ({ guess: botDialGuess(round!.target, botSkill(bot.id)) }),
+  });
 
   async function reveal() {
     if (!room || !round || room.phase !== "guess") return;

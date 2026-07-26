@@ -25,6 +25,7 @@ const GAMES: {
     icon: "🐑",
     name: "Majority Rules",
     desc: "Vote on either/or prompts and predict which way the room will go. Points for reading the crowd.",
+    bots: { minHumans: 1 },
   },
   {
     slug: "scatter",
@@ -43,6 +44,7 @@ const GAMES: {
     icon: "🎯",
     name: "Ballpark",
     desc: "Nobody knows how tall the Eiffel Tower is. Closest guess takes the round.",
+    bots: { minHumans: 1 },
   },
   {
     slug: "twotruths",

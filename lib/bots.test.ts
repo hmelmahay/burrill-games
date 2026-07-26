@@ -13,6 +13,10 @@ import {
   botSkill,
   botDelayMs,
   botDialGuess,
+  botNumberGuess,
+  crowdBias,
+  botBinaryVote,
+  botPredict,
   BOT_FULL_NAMES,
 } from "./bot-logic.ts";
 import { pointsForDistance, PSYCHIC_PER_CLOSE, CLOSE_RANGE } from "../app/vibe/constants.ts";
@@ -125,6 +129,74 @@ for (let r = 0; r < 500; r++) {
   void psychic;
 }
 check("solo rounds actually put points on the board", scoredRounds > 400, `${scoredRounds}/500`);
+
+
+// --- Ballpark: numeric guesses ------------------------------------------
+// Error must scale with the answer, so a piano (88 keys) and the Great Wall
+// (21196 km) both get plausible misses.
+let badNumbers = 0;
+const relErr: Record<string, number[]> = { sharp: [], fuzzy: [] };
+for (const answer of [88, 206, 330, 21196]) {
+  for (let i = 0; i < 3000; i++) {
+    const sharp = botNumberGuess(answer, 0.95);
+    const fuzzy = botNumberGuess(answer, 0.05);
+    if (sharp < 0 || fuzzy < 0) badNumbers++;
+    if (!Number.isInteger(sharp) || !Number.isInteger(fuzzy)) badNumbers++;
+    relErr.sharp.push(Math.abs(sharp - answer) / answer);
+    relErr.fuzzy.push(Math.abs(fuzzy - answer) / answer);
+  }
+}
+const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const sharpRel = avg(relErr.sharp);
+const fuzzyRel = avg(relErr.fuzzy);
+check("numeric guesses are non-negative integers", badNumbers === 0, `${badNumbers} bad`);
+check("sharp bots are closer than fuzzy bots", sharpRel < fuzzyRel,
+  `${(sharpRel * 100).toFixed(1)}% vs ${(fuzzyRel * 100).toFixed(1)}%`);
+check("sharp bots land within ~10% on average", sharpRel < 0.12, `${(sharpRel * 100).toFixed(1)}%`);
+check("fuzzy bots miss wide but stay plausible", fuzzyRel > 0.1 && fuzzyRel < 0.5,
+  `${(fuzzyRel * 100).toFixed(1)}%`);
+check("a zero answer cannot produce a negative guess", botNumberGuess(0, 0.05, () => 0) >= 0);
+
+// --- Majority Rules: crowd leaning --------------------------------------
+const bias1 = crowdBias("Pizza|Tacos");
+check("crowd bias is stable for the same prompt", bias1 === crowdBias("Pizza|Tacos"));
+check("crowd bias avoids the extremes", bias1 >= 0.2 && bias1 <= 0.8, `${bias1}`);
+const biases = new Set(
+  ["Pizza|Tacos", "Dogs|Cats", "Summer|Winter", "Coffee|Tea", "Sweet|Salty"].map((s) =>
+    crowdBias(s).toFixed(3),
+  ),
+);
+check("different prompts lean different ways", biases.size >= 4, `${biases.size} distinct of 5`);
+
+// Bots must cluster, not coin-flip — otherwise predicting the room is luck
+// and the whole game stops working.
+let aVotes = 0;
+const trials = 20000;
+for (let i = 0; i < trials; i++) if (botBinaryVote(0.75) === "a") aVotes++;
+check("votes follow the crowd leaning", Math.abs(aVotes / trials - 0.75) < 0.02,
+  `${((aVotes / trials) * 100).toFixed(1)}% picked a`);
+
+let sharpRight = 0;
+let fuzzyRight = 0;
+for (let i = 0; i < trials; i++) {
+  if (botPredict(0.75, 0.95) === "a") sharpRight++;
+  if (botPredict(0.75, 0.05) === "a") fuzzyRight++;
+}
+check("sharp bots read the room better than fuzzy ones", sharpRight > fuzzyRight,
+  `${((sharpRight / trials) * 100).toFixed(0)}% vs ${((fuzzyRight / trials) * 100).toFixed(0)}%`);
+check("even sharp bots are wrong sometimes", sharpRight < trials * 0.98);
+check("fuzzy bots still beat pure noise sometimes", fuzzyRight > trials * 0.3);
+
+// A solo Majority round: 1 human + 3 bots should produce a real majority
+// often enough that predictions are meaningful.
+let decisive = 0;
+for (let r = 0; r < 2000; r++) {
+  const b = crowdBias(`round-${r}`);
+  const votes = [0, 1, 2].map(() => botBinaryVote(b));
+  const a = votes.filter((v) => v === "a").length;
+  if (a !== votes.length - a) decisive++;
+}
+check("bot rooms usually produce a clear majority", decisive > 1800, `${decisive}/2000`);
 
 // --- report -------------------------------------------------------------
 console.log(`\n${passed} passed, ${failures.length} failed`);

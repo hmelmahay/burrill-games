@@ -1,10 +1,13 @@
 "use client";
 
 import { useRef, useState, use, useEffect } from "react";
+import Link from "next/link";
 import { supabase, BallparkRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
+import { addBot, removeBot, humansOf, botsOf, botSkill, botNumberGuess } from "@/lib/bots";
+import { useBotSubmissions } from "@/lib/useBots";
 import {
   RANK_POINTS,
   PARTICIPATION_POINTS,
@@ -25,6 +28,16 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
   const round = room ? (room.rounds[room.round_idx] as BallparkRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as BallparkPhaseData;
   const answered = subs.filter((s) => s.round_idx === room?.round_idx);
+  const [botErr, setBotErr] = useState<string | null>(null);
+
+  useBotSubmissions({
+    room,
+    players,
+    roundSubs: answered,
+    active: room?.phase === "guess" && !!round,
+    tvRef,
+    makePayload: (bot) => ({ guess: botNumberGuess(round!.answer, botSkill(bot.id)) }),
+  });
 
   async function startGame() {
     if (!room) return;
@@ -141,8 +154,30 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 1}>
-            {players.length < 1 ? "Waiting for players…" : `Start (${totalRounds} rounds)`}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => setBotErr(room ? await addBot(room, players) : null)}
+              className="flex-1 rounded-xl border-2 border-line py-2.5 font-bold hover:border-glow"
+            >
+              🤖 Add a bot
+            </button>
+            {botsOf(players).length > 0 && (
+              <button
+                onClick={async () => setBotErr(await removeBot(players))}
+                className="rounded-xl border border-line px-4 py-2.5 text-fog hover:border-lose"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {botErr && <p className="text-lose text-sm text-center">{botErr}</p>}
+          <BigBtn
+            onClick={startGame}
+            disabled={busy || players.length < 1 || humansOf(players).length < 1}
+          >
+            {humansOf(players).length < 1
+              ? "Waiting for a human…"
+              : `Start (${totalRounds} rounds)`}
           </BigBtn>
         </div>
       )}
@@ -201,9 +236,9 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
           <div className="w-full">
             <Leaderboard players={players} />
           </div>
-          <a href="/ballpark/host" className="underline text-fog">
+          <Link href="/ballpark/host" className="underline text-fog">
             Play again with a new room
-          </a>
+          </Link>
         </div>
       )}
     </Shell>
