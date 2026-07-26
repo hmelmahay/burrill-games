@@ -19,6 +19,7 @@ export function useBotSubmissions({
   tvRef,
   excludeId,
   makePayload,
+  delayMs,
 }: {
   room: Room | null;
   players: Player[];
@@ -27,13 +28,18 @@ export function useBotSubmissions({
   tvRef: RefObject<boolean>;
   excludeId?: string;
   makePayload: (bot: Player) => Record<string, unknown>;
+  // Override the thinking pause. Quiz Rush scores by arrival time, so its
+  // bots need a delay tied to the answer window rather than the default.
+  delayMs?: (bot: Player) => number;
 }) {
   const scheduled = useRef(new Set<string>());
   // Read the latest payload builder without making it an effect dependency
   // (it is rebuilt every render, which would restart every bot's timer).
   const payloadRef = useRef(makePayload);
+  const delayRef = useRef(delayMs);
   useEffect(() => {
     payloadRef.current = makePayload;
+    delayRef.current = delayMs;
   });
 
   useEffect(() => {
@@ -65,7 +71,7 @@ export function useBotSubmissions({
               // 23505 = already submitted (double-fire race) — harmless.
               if (error && error.code !== "23505") keys.delete(key);
             });
-        }, botDelayMs()),
+        }, delayRef.current ? delayRef.current(bot) : botDelayMs()),
       };
       timers.push(entry);
     }

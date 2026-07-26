@@ -17,6 +17,10 @@ import {
   crowdBias,
   botBinaryVote,
   botPredict,
+  botQuizChoice,
+  botQuizDelayMs,
+  hotTakeFavourite,
+  botHotTakeVote,
   BOT_FULL_NAMES,
 } from "./bot-logic.ts";
 import { pointsForDistance, PSYCHIC_PER_CLOSE, CLOSE_RANGE } from "../app/vibe/constants.ts";
@@ -197,6 +201,101 @@ for (let r = 0; r < 2000; r++) {
   if (a !== votes.length - a) decisive++;
 }
 check("bot rooms usually produce a clear majority", decisive > 1800, `${decisive}/2000`);
+
+
+// --- Quiz Rush ----------------------------------------------------------
+let sharpCorrect = 0;
+let fuzzyCorrect = 0;
+let illegalChoice = 0;
+const wrongSpread = [0, 0, 0, 0];
+for (let i = 0; i < 20000; i++) {
+  const answer = 2;
+  const s = botQuizChoice(answer, 0.95);
+  const f = botQuizChoice(answer, 0.05);
+  if (![0, 1, 2, 3].includes(s) || ![0, 1, 2, 3].includes(f)) illegalChoice++;
+  if (s === answer) sharpCorrect++;
+  if (f === answer) fuzzyCorrect++;
+  else wrongSpread[f]++;
+}
+check("quiz choices are always 0..3", illegalChoice === 0, `${illegalChoice} bad`);
+check("sharp bots answer correctly more often", sharpCorrect > fuzzyCorrect,
+  `${((sharpCorrect / 20000) * 100).toFixed(0)}% vs ${((fuzzyCorrect / 20000) * 100).toFixed(0)}%`);
+check("sharp bots are not infallible", sharpCorrect < 20000 * 0.97);
+check("fuzzy bots still beat random guessing", fuzzyCorrect > 20000 * 0.2);
+check("wrong answers spread across all three wrong choices",
+  wrongSpread[0] > 0 && wrongSpread[1] > 0 && wrongSpread[3] > 0);
+check("the correct answer never appears as a 'wrong' pick", wrongSpread[2] === 0);
+
+// Quiz scores by arrival time, so a delay outside the window would mean the
+// bot effectively never answers.
+let outsideWindow = 0;
+let sharpMs = 0;
+let fuzzyMs = 0;
+for (const secs of [10, 20, 45]) {
+  for (let i = 0; i < 5000; i++) {
+    const s = botQuizDelayMs(0.95, secs);
+    const f = botQuizDelayMs(0.05, secs);
+    if (s <= 0 || s >= secs * 1000 || f <= 0 || f >= secs * 1000) outsideWindow++;
+    if (secs === 20) {
+      sharpMs += s;
+      fuzzyMs += f;
+    }
+  }
+}
+check("every quiz answer lands inside the clock", outsideWindow === 0, `${outsideWindow} outside`);
+check("sharp bots answer faster than fuzzy ones", sharpMs < fuzzyMs,
+  `${(sharpMs / 5000 / 1000).toFixed(1)}s vs ${(fuzzyMs / 5000 / 1000).toFixed(1)}s`);
+
+// --- Hot Take -----------------------------------------------------------
+const cands = ["p1", "p2", "p3", "p4"];
+const fav = hotTakeFavourite("Most likely to sleep through three alarms", cands);
+check("a favourite is chosen from the candidates", fav !== null && cands.includes(fav));
+check("the favourite is stable for the same prompt",
+  fav === hotTakeFavourite("Most likely to sleep through three alarms", cands));
+const favs = new Set(
+  ["a", "b", "c", "d", "e", "f"].map((q) => hotTakeFavourite("prompt " + q, cands)),
+);
+check("different prompts pick different favourites", favs.size >= 2, `${favs.size} distinct`);
+check("no candidates yields null", hotTakeFavourite("x", []) === null);
+check("a single candidate is always the favourite", hotTakeFavourite("x", ["only"]) === "only");
+
+let favVotes = 0;
+let wildVotes = 0;
+let nullVotes = 0;
+for (let i = 0; i < 20000; i++) {
+  const v = botHotTakeVote("Most likely to sleep through three alarms", cands, 0.9);
+  if (v === null) nullVotes++;
+  else if (v === fav) favVotes++;
+  else wildVotes++;
+}
+check("hot take votes are never null with candidates", nullVotes === 0);
+check("bots mostly back the room favourite", favVotes > wildVotes,
+  `${((favVotes / 20000) * 100).toFixed(0)}% favourite`);
+check("bots still throw wildcards", wildVotes > 20000 * 0.02);
+check("a lone-candidate room still votes", botHotTakeVote("x", ["solo"], 0.5) === "solo");
+
+// A plurality must actually form, or "read the room" scoring is meaningless.
+function pluralityRate(botIds: string[], trials = 2000): number {
+  let clear = 0;
+  for (let r = 0; r < trials; r++) {
+    const counts: Record<string, number> = {};
+    for (const id of botIds) {
+      const v = botHotTakeVote(`prompt-${r}`, cands, botSkill(id));
+      if (v) counts[v] = (counts[v] ?? 0) + 1;
+    }
+    const sorted = Object.values(counts).sort((a, b) => b - a);
+    if (sorted.length > 0 && (sorted.length === 1 || sorted[0] > sorted[1])) clear++;
+  }
+  return clear / trials;
+}
+// Three voters and four candidates is the hardest case — 1-1-1 splits are
+// unavoidable sometimes, exactly as they would be with three humans.
+const plural3 = pluralityRate(["b1", "b2", "b3"]);
+const plural5 = pluralityRate(["b1", "b2", "b3", "b4", "b5"]);
+check("a 3-bot room usually reaches a plurality", plural3 > 0.75, `${(plural3 * 100).toFixed(0)}%`);
+check("a 5-bot room decides more reliably", plural5 > 0.85, `${(plural5 * 100).toFixed(0)}%`);
+check("bigger rooms decide more often than small ones", plural5 > plural3,
+  `${(plural5 * 100).toFixed(0)}% vs ${(plural3 * 100).toFixed(0)}%`);
 
 // --- report -------------------------------------------------------------
 console.log(`\n${passed} passed, ${failures.length} failed`);

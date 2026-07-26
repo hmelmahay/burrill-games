@@ -16,6 +16,10 @@ export {
   crowdBias,
   botBinaryVote,
   botPredict,
+  botQuizChoice,
+  botQuizDelayMs,
+  hotTakeFavourite,
+  botHotTakeVote,
 } from "./bot-logic";
 
 export async function addBot(room: Room, players: Player[]): Promise<string | null> {

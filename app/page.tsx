@@ -19,6 +19,7 @@ const GAMES: {
     icon: "⚡",
     name: "Quiz Rush",
     desc: "Speed trivia. Everyone answers on their phone — faster correct answers score more.",
+    bots: { minHumans: 1 },
   },
   {
     slug: "majority",
@@ -57,6 +58,7 @@ const GAMES: {
     icon: "🔥",
     name: "Hot Take",
     desc: "Who's most likely to sleep through three alarms? Vote for a player, score by reading the room.",
+    bots: { minHumans: 1 },
   },
   {
     slug: "doodle",
