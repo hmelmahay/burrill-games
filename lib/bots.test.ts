@@ -22,6 +22,10 @@ import {
   hotTakeFavourite,
   botHotTakeVote,
   botPsychicSpot,
+  botBlindDial,
+  botBlindChoice,
+  botBlindNumber,
+  botQuizPick,
   BOT_FULL_NAMES,
 } from "./bot-logic.ts";
 import { pointsForDistance, PSYCHIC_PER_CLOSE, CLOSE_RANGE } from "../app/vibe/constants.ts";
@@ -345,6 +349,51 @@ for (let i = 0; i < 20000; i++) {
 }
 check("bot psychic spots stay inside their zone and 5..95", badSpot === 0, `${badSpot} bad`);
 check("every zone gets used", zoneHits.every((n) => n > 0), zoneHits.join("/"));
+
+
+// --- Blind play (answer service unavailable) ----------------------------
+// The rule is that a bot never derives an answer from the truth. When it has
+// nothing to reason from it must guess blind, so these must not depend on any
+// answer being passed in — note none of them take one.
+let blindBad = 0;
+const dialSeen = new Set<number>();
+const choiceSeen = new Set<number>();
+for (let i = 0; i < 20000; i++) {
+  const d = botBlindDial();
+  if (!Number.isInteger(d) || d < 0 || d > 100) blindBad++;
+  dialSeen.add(d);
+  const c = botBlindChoice(4);
+  if (!Number.isInteger(c) || c < 0 || c > 3) blindBad++;
+  choiceSeen.add(c);
+  const n = botBlindNumber();
+  if (!Number.isFinite(n) || n < 1) blindBad++;
+}
+check("blind dial stays in 0..100", blindBad === 0, `${blindBad} bad`);
+check("blind dial spans the scale", dialSeen.size > 90, `${dialSeen.size} distinct`);
+check("blind choice covers every option", choiceSeen.size === 4, `${choiceSeen.size} of 4`);
+check("blind picks need no answer to produce one",
+  typeof botBlindDial(() => 0.5) === "number" && typeof botBlindNumber(() => 0.5) === "number");
+check("blind number spans orders of magnitude",
+  botBlindNumber(() => 0) === 1 && botBlindNumber(() => 1) === 10000);
+
+// --- Quiz: noise on the bot's OWN answer, not on the truth ---------------
+// botQuizPick takes the bot's own reading of the question. A sharp bot mostly
+// sticks with it; a fuzzy one talks itself into a different option.
+let sharpStuck = 0;
+let fuzzyStuck = 0;
+let illegalPick = 0;
+for (let i = 0; i < 20000; i++) {
+  const s = botQuizPick(2, 4, 0.95);
+  const f = botQuizPick(2, 4, 0.05);
+  if (s < 0 || s > 3 || f < 0 || f > 3) illegalPick++;
+  if (s === 2) sharpStuck++;
+  if (f === 2) fuzzyStuck++;
+}
+check("quiz picks stay within the choice list", illegalPick === 0, `${illegalPick} bad`);
+check("sharp bots trust their own answer more", sharpStuck > fuzzyStuck,
+  `${((sharpStuck / 20000) * 100).toFixed(0)}% vs ${((fuzzyStuck / 20000) * 100).toFixed(0)}%`);
+check("even sharp bots second-guess sometimes", sharpStuck < 20000 * 0.98);
+check("a single-option question can't drift", botQuizPick(0, 1, 0.05) === 0);
 
 // --- report -------------------------------------------------------------
 console.log(`\n${passed} passed, ${failures.length} failed`);

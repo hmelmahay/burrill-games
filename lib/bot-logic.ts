@@ -102,6 +102,41 @@ export function botPsychicSpot(rand: () => number = Math.random): { zone: number
   return { zone, target: lo + Math.floor(rand() * (hi - lo + 1)) };
 }
 
+// --- Blind play ---------------------------------------------------------
+// When the answer service is unavailable a bot has nothing to reason from.
+// It then guesses blind — uninformed and usually wrong, but never derived
+// from the answer. Peeking is not an acceptable fallback.
+
+export function botBlindDial(rand: () => number = Math.random): number {
+  return Math.floor(rand() * 101);
+}
+
+export function botBlindChoice(choiceCount: number, rand: () => number = Math.random): number {
+  return Math.min(choiceCount - 1, Math.floor(rand() * choiceCount));
+}
+
+// Order of magnitude is unknowable without knowing the question, so spread the
+// guess log-uniformly across a broad plausible range.
+export function botBlindNumber(rand: () => number = Math.random): number {
+  return Math.round(Math.pow(10, rand() * 4));
+}
+
+// A bot's multiple-choice pick, given its own reading of the question. Sharp
+// bots stick with what they worked out; fuzzy ones second-guess themselves into
+// a different option — noise on the bot's own answer, never on the truth.
+export function botQuizPick(
+  ownChoice: number,
+  choiceCount: number,
+  skill: number,
+  rand: () => number = Math.random,
+): number {
+  const confidence = 0.45 + skill * 0.5;
+  if (rand() < confidence) return ownChoice;
+  const others = Array.from({ length: choiceCount }, (_, i) => i).filter((i) => i !== ownChoice);
+  if (others.length === 0) return ownChoice;
+  return others[Math.min(others.length - 1, Math.floor(rand() * others.length))];
+}
+
 // --- Quiz Rush ----------------------------------------------------------
 
 // Which of four choices a bot picks. Sharp bots are usually right; fuzzy bots

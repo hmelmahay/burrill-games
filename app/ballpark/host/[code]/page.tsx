@@ -6,7 +6,8 @@ import { supabase, BallparkRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
-import { addBot, removeBot, humansOf, botsOf, botSkill, botNumberGuess } from "@/lib/bots";
+import { addBot, removeBot, humansOf, botsOf, botSkill, botNumberGuess, botBlindNumber } from "@/lib/bots";
+import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
 import {
   RANK_POINTS,
@@ -30,13 +31,29 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
   const answered = subs.filter((s) => s.round_idx === room?.round_idx);
   const [botErr, setBotErr] = useState<string | null>(null);
 
+  // Bots estimate the answer themselves — they never see round.answer. With no
+  // answer service they guess blind rather than peek.
+  const { ready: botsReady, answer: botAnswer } = useBotAnswer<{ value: number }>({
+    room,
+    active: room?.phase === "guess" && !!round,
+    tvRef,
+    ask:
+      room?.phase === "guess" && round
+        ? { kind: "ballpark", question: round.q, unit: round.unit }
+        : null,
+  });
+
   useBotSubmissions({
     room,
     players,
     roundSubs: answered,
-    active: room?.phase === "guess" && !!round,
+    active: room?.phase === "guess" && !!round && botsReady,
     tvRef,
-    makePayload: (bot) => ({ guess: botNumberGuess(round!.answer, botSkill(bot.id)) }),
+    makePayload: (bot) => ({
+      guess: botAnswer
+        ? botNumberGuess(botAnswer.value, botSkill(bot.id))
+        : botBlindNumber(),
+    }),
   });
 
   async function startGame() {
@@ -187,6 +204,11 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
           <p className="text-sm text-fog text-center">
             Round {room.round_idx + 1}/{totalRounds} · {answered.length}/{players.length} in
           </p>
+          {botsReady && !botAnswer && botsOf(players).length > 0 && (
+            <p className="text-lose text-center text-xs">
+              Bots are guessing blind — the answer service is unavailable.
+            </p>
+          )}
           <div className="rounded-2xl bg-card border-2 border-violet p-6 text-center">
             <h1 className="text-2xl font-extrabold">{round.q}</h1>
           </div>
