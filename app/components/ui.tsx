@@ -55,19 +55,19 @@ export function CodeBadge({ code }: { code: string }) {
   );
 }
 
-// Shows the read-only big-screen address for this room (hidden on the TV itself).
+// Shows the big-screen entry address (hidden on the TV itself). The /tv page
+// is the same for every game and room — bookmark once, then just type the code.
 function TvHint() {
   const { tv } = useSpectator();
-  const [url, setUrl] = useState("");
+  const [host, setHost] = useState("");
   useEffect(() => {
-    setUrl(`${window.location.host}${window.location.pathname}?tv=1`);
+    setHost(window.location.host);
   }, []);
-  if (tv || !url) return null;
+  if (tv || !host) return null;
   return (
     <div className="text-fog text-xs mt-1.5">
-      📺 Got a TV? Open{" "}
-      <span className="font-mono text-glow break-all">{url}</span> in its browser
-      for a controls-free scoreboard.
+      📺 Got a TV? Open <span className="font-mono text-glow">{host}/tv</span> in
+      its browser and enter this code — instant controls-free scoreboard.
     </div>
   );
 }
