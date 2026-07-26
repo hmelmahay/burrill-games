@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* dark: is class-based here — ported Needle Drop pages force it with a .dark
+   wrapper so they always match the arcade's dark theme regardless of OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-ink: #0d1026;
   --color-card: #171b3a;

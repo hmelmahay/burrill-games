@@ -21,17 +21,33 @@ export default function TvEntry() {
       .eq("code", c)
       .maybeSingle();
     const room = data as Pick<Room, "game" | "code" | "status"> | null;
-    if (!room) {
+    if (room) {
+      if (room.status === "ended") {
+        setErr("That game already ended.");
+        setBusy(false);
+        return;
+      }
+      window.location.href = `/${room.game}/host/${room.code}?tv=1`;
+      return;
+    }
+    // Not an arcade room — maybe it's a Needle Drop (music bingo) game.
+    const { data: nd } = await supabase
+      .from("games")
+      .select("code,status")
+      .eq("code", c)
+      .maybeSingle();
+    const ndGame = nd as { code: string; status: string } | null;
+    if (!ndGame) {
       setErr("No room with that code. Double-check it?");
       setBusy(false);
       return;
     }
-    if (room.status === "ended") {
+    if (ndGame.status === "ended") {
       setErr("That game already ended.");
       setBusy(false);
       return;
     }
-    window.location.href = `/${room.game}/host/${room.code}?tv=1`;
+    window.location.href = `/needle/host/game/${ndGame.code}?tv=1`;
   }
 
   return (

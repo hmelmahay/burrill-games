@@ -2,6 +2,12 @@ import Link from "next/link";
 
 const GAMES = [
   {
+    slug: "needle",
+    icon: "🎵",
+    name: "Needle Drop",
+    desc: "Music bingo — ad-free 30-second clips, 14 pools, 700+ songs. Cards on phones, host verifies wins.",
+  },
+  {
     slug: "quiz",
     icon: "⚡",
     name: "Quiz Rush",
