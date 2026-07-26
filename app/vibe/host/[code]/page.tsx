@@ -8,6 +8,8 @@ import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
 import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
+import { PlayerPanel } from "@/app/vibe/PlayerPanel";
+import { playerKey } from "@/lib/rooms";
 import { addBot, removeBot, isBot, humansOf, botsOf, botSkill, botDialGuess, botPsychicSpot, botDelayMs } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
 import { VIBE_SCALES } from "@/lib/content/vibes";
@@ -29,6 +31,12 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
   const advancingRef = useRef<string | null>(null);
 
   const [botErr, setBotErr] = useState<string | null>(null);
+  // Set when whoever opened this screen also joined as a player.
+  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  useEffect(() => {
+    setMyPlayerId(localStorage.getItem(playerKey(code)));
+  }, [code]);
+  const iAmPlaying = !!myPlayerId && players.some((p) => p.id === myPlayerId);
   const settings = (room?.settings ?? {}) as { cycles?: number };
   const rounds = (room?.rounds ?? []) as VibeRound[];
   const round = room ? rounds[room.round_idx] : undefined;
@@ -266,7 +274,13 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
         </div>
       )}
 
-      {room.phase === "clue" && round && (
+      {iAmPlaying && myPlayerId && (room.phase === "clue" || room.phase === "guess") && (
+        <div className="mb-5 rounded-2xl border-2 border-violet bg-card/60 p-4">
+          <PlayerPanel room={room} players={players} subs={subs} playerId={myPlayerId} />
+        </div>
+      )}
+
+      {room.phase === "clue" && round && !(iAmPlaying && round.psychic_id === myPlayerId) && (
         <div className="flex flex-col gap-4 items-center py-8">
           <p className="text-sm text-fog">
             Round {room.round_idx + 1}/{rounds.length}
