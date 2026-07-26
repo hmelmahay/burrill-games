@@ -1,0 +1,27 @@
+# Required check for main: every PR (and main itself) must pass tests + build.
+# No human approvals are required anywhere — green CI is the only gate.
+# Lint is NOT gated yet (45 pre-existing errors); clean it up, then add
+# `npm run lint` as a step.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      # Public browser-side values (they ship in every visitor's bundle);
+      # the build inlines them, so it fails without them.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
