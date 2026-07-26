@@ -34,6 +34,10 @@ export function CodeBadge({ code }: { code: string }) {
       <div className="text-6xl font-extrabold font-mono tracking-[0.2em] text-glow">
         {code}
       </div>
+      <div className="text-fog text-xs mt-2">
+        Playing too? Join with this code from your phone — this screen is just the
+        room&apos;s scoreboard, and anyone can run it.
+      </div>
     </div>
   );
 }
