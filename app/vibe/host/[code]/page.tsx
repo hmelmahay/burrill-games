@@ -31,6 +31,9 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
   const advancingRef = useRef<string | null>(null);
 
   const [botErr, setBotErr] = useState<string | null>(null);
+  // What the clue reader made of this round's clue. `pos: null` means the
+  // reader was unavailable and the bots are falling back to peeking.
+  const [clueRead, setClueRead] = useState<{ round: number; pos: number | null } | null>(null);
   // Set when whoever opened this screen also joined as a player.
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   useEffect(() => {
@@ -110,6 +113,36 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [psychicSub?.id, room?.phase]);
 
+  // Ask the server what the clue means, once per round, before any bot guesses.
+  // Without this the bots would be reading round.target — i.e. cheating.
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (!room || room.phase !== "guess" || !round || !phaseData.clue) return;
+    if (clueRead?.round === room.round_idx) return;
+    let cancelled = false;
+    fetch("/api/vibe/read-clue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clue: phaseData.clue, left: round.left, right: round.right }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return;
+        const pos = typeof j?.position === "number" ? j.position : null;
+        setClueRead({ round: room.round_idx, pos });
+      })
+      .catch(() => {
+        if (!cancelled) setClueRead({ round: room.round_idx, pos: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id, room?.round_idx, room?.phase, phaseData.clue]);
+
+  const readyToGuess = clueRead?.round === room?.round_idx;
+  const readPos = readyToGuess ? clueRead?.pos : undefined;
+
   // A bot psychic files its clue after a humanlike pause, which trips the
   // existing "clue arrived → open guessing" effect below.
   const clueSentRef = useRef<string | null>(null);
@@ -141,10 +174,14 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     room,
     players,
     roundSubs,
-    active: room?.phase === "guess" && !!round,
+    active: room?.phase === "guess" && !!round && readyToGuess,
     tvRef,
     excludeId: round?.psychic_id,
-    makePayload: (bot) => ({ guess: botDialGuess(round!.target, botSkill(bot.id)) }),
+    makePayload: (bot) => ({
+      // readPos is the reader's interpretation of the clue; falling back to
+      // round.target only happens when the reader is offline.
+      guess: botDialGuess(readPos ?? round!.target, botSkill(bot.id)),
+    }),
   });
 
   async function reveal() {
@@ -320,6 +357,11 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
           <p className="text-fog text-center text-sm">
             Slide your dial to where that clue lives on the scale.
           </p>
+          {readyToGuess && readPos == null && (
+            <p className="text-lose text-center text-xs">
+              Clue reader offline — bots are guessing from the answer this round.
+            </p>
+          )}
           <BigBtn onClick={reveal} disabled={busy || guesses.length === 0} color="ghost">
             Reveal now ({guesses.length} in)
           </BigBtn>
