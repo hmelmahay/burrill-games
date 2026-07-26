@@ -161,7 +161,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
     <Shell title="Two Truths & a Lie · host" icon="🤥">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} />
+          <CodeBadge code={room.code} game="twotruths" />
           <p className="text-center text-fog text-sm">
             Players join at this site → Two Truths &amp; a Lie → Join, with the code.
           </p>

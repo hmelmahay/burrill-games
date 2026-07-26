@@ -8,6 +8,7 @@ import { Shell, Leaderboard } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { VibeRound, VibePhaseData } from "@/app/vibe/constants";
 import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
+import { addBot, removeBot, botsOf, humansOf } from "@/lib/bots";
 
 export default function VibePlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -16,6 +17,7 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
   const [clue, setClue] = useState("");
   const [dial, setDial] = useState(50);
   const [sent, setSent] = useState(false);
+  const [botErr, setBotErr] = useState<string | null>(null);
 
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
@@ -90,7 +92,32 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
           <p className="text-3xl">🎉</p>
           <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
           <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
+          <p className="text-fog text-sm">
+            {humansOf(players).length} player
+            {humansOf(players).length === 1 ? "" : "s"}
+            {botsOf(players).length > 0 && ` + ${botsOf(players).length} bot${
+              botsOf(players).length === 1 ? "" : "s"
+            }`}
+          </p>
+          {/* The people actually playing should set the table size, not
+              whoever happens to be holding the host screen. */}
+          <div className="flex items-center gap-3 w-full max-w-xs mt-2">
+            <button
+              onClick={async () => setBotErr(await addBot(room, players))}
+              className="flex-1 rounded-xl border-2 border-line py-2.5 font-bold hover:border-glow"
+            >
+              🤖 Add a bot
+            </button>
+            {botsOf(players).length > 0 && (
+              <button
+                onClick={async () => setBotErr(await removeBot(players))}
+                className="rounded-xl border border-line px-4 py-2.5 text-fog hover:border-lose"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {botErr && <p className="text-lose text-sm">{botErr}</p>}
         </div>
       )}
 

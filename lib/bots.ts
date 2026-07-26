@@ -20,6 +20,7 @@ export {
   botQuizDelayMs,
   hotTakeFavourite,
   botHotTakeVote,
+  botPsychicSpot,
 } from "./bot-logic";
 
 export async function addBot(room: Room, players: Player[]): Promise<string | null> {

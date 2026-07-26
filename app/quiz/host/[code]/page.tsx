@@ -175,7 +175,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     <Shell title="Quiz Rush · host" icon="⚡">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} />
+          <CodeBadge code={room.code} game="quiz" />
           <p className="text-center text-fog text-sm">
             Players join at this site → Quiz Rush → Join, with the code.
           </p>

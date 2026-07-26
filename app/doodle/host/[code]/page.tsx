@@ -192,7 +192,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
     <Shell title="Doodle Dash · host" icon="🎨">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} />
+          <CodeBadge code={room.code} game="doodle" />
           <p className="text-center text-fog text-sm">
             Players join at this site → Doodle Dash → Join, with the code.
           </p>

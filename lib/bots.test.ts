@@ -21,6 +21,7 @@ import {
   botQuizDelayMs,
   hotTakeFavourite,
   botHotTakeVote,
+  botPsychicSpot,
   BOT_FULL_NAMES,
 } from "./bot-logic.ts";
 import { pointsForDistance, PSYCHIC_PER_CLOSE, CLOSE_RANGE } from "../app/vibe/constants.ts";
@@ -296,6 +297,54 @@ check("a 3-bot room usually reaches a plurality", plural3 > 0.75, `${(plural3 * 
 check("a 5-bot room decides more reliably", plural5 > 0.85, `${(plural5 * 100).toFixed(0)}%`);
 check("bigger rooms decide more often than small ones", plural5 > plural3,
   `${(plural5 * 100).toFixed(0)}% vs ${(plural3 * 100).toFixed(0)}%`);
+
+
+// --- Vibe Check: bot psychics ------------------------------------------
+// The clue bank is what makes a bot psychic possible: its clue must always
+// honestly point at the secret spot, which means the spot has to land inside
+// the zone the clue was drawn from.
+import { VIBE_CLUE_BANK } from "./content/vibe-clues.ts";
+
+check("every banked scale has five zones",
+  VIBE_CLUE_BANK.every((s) => s.zones.length === 5));
+check("every zone has at least two clues",
+  VIBE_CLUE_BANK.every((s) => s.zones.every((z) => z.length >= 2)));
+check("no clue is empty",
+  VIBE_CLUE_BANK.every((s) => s.zones.every((z) => z.every((c) => c.trim().length > 2))));
+// A clue must not contain ANY significant word from either end of the scale —
+// "a beach umbrella" on Beach vs Mountain hands players the answer just as
+// surely as saying "beach vacation".
+const STOP = new Set(["a", "an", "the", "to", "of", "in", "on", "at", "and", "or"]);
+const scaleWords = (s: { left: string; right: string }) =>
+  `${s.left} ${s.right}`
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((w) => w.length > 2 && !STOP.has(w));
+const leaks: string[] = [];
+for (const s of VIBE_CLUE_BANK) {
+  const words = scaleWords(s);
+  for (const z of s.zones)
+    for (const c of z) {
+      const hit = words.find((w) => new RegExp(`\\b${w}`, "i").test(c));
+      if (hit) leaks.push(`"${c}" leaks "${hit}" on ${s.left}/${s.right}`);
+    }
+}
+check("no clue leaks any scale word", leaks.length === 0, leaks[0] ?? "");
+check("banked scales are distinct",
+  new Set(VIBE_CLUE_BANK.map((s) => `${s.left}|${s.right}`)).size === VIBE_CLUE_BANK.length);
+
+let badSpot = 0;
+const zoneHits = [0, 0, 0, 0, 0];
+for (let i = 0; i < 20000; i++) {
+  const { zone, target } = botPsychicSpot();
+  if (zone < 0 || zone > 4) badSpot++;
+  if (target < 5 || target > 95) badSpot++;
+  // The spot must sit inside its own zone, or the clue would be a lie.
+  if (target < zone * 20 || target >= (zone + 1) * 20) badSpot++;
+  zoneHits[zone]++;
+}
+check("bot psychic spots stay inside their zone and 5..95", badSpot === 0, `${badSpot} bad`);
+check("every zone gets used", zoneHits.every((n) => n > 0), zoneHits.join("/"));
 
 // --- report -------------------------------------------------------------
 console.log(`\n${passed} passed, ${failures.length} failed`);

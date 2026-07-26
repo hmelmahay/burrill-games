@@ -8,9 +8,10 @@ import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
 import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
-import { addBot, removeBot, humansOf, botsOf, botSkill, botDialGuess } from "@/lib/bots";
+import { addBot, removeBot, isBot, humansOf, botsOf, botSkill, botDialGuess, botPsychicSpot, botDelayMs } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
 import { VIBE_SCALES } from "@/lib/content/vibes";
+import { VIBE_CLUE_BANK } from "@/lib/content/vibe-clues";
 import {
   pointsForDistance,
   PSYCHIC_PER_CLOSE,
@@ -42,19 +43,38 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     setBusy(true);
     const cycles = settings.cycles ?? 1;
     const scales = shuffle(VIBE_SCALES);
+    const botScales = shuffle(VIBE_CLUE_BANK);
     const order: VibeRound[] = [];
     let si = 0;
+    let bi = 0;
     for (let c = 0; c < cycles; c++) {
-      // Bots guess but never take the psychic seat — clues need a human.
-      for (const p of shuffle(humansOf(players))) {
-        const sc = scales[si++ % scales.length];
-        order.push({
-          psychic_id: p.id,
-          psychic_name: p.name,
-          left: sc.left,
-          right: sc.right,
-          target: 5 + Math.floor(Math.random() * 91), // 5..95
-        });
+      // Everyone takes a turn as psychic, bots included — otherwise a solo
+      // human only ever writes clues and never gets to guess.
+      for (const p of shuffle(players)) {
+        if (isBot(p)) {
+          // Bots draw from the hand-written clue bank, and the secret spot is
+          // placed inside the clue's zone so the clue is always truthful.
+          const sc = botScales[bi++ % botScales.length];
+          const { zone, target } = botPsychicSpot();
+          const options = sc.zones[zone];
+          order.push({
+            psychic_id: p.id,
+            psychic_name: p.name,
+            left: sc.left,
+            right: sc.right,
+            target,
+            botClue: options[Math.floor(Math.random() * options.length)],
+          });
+        } else {
+          const sc = scales[si++ % scales.length];
+          order.push({
+            psychic_id: p.id,
+            psychic_name: p.name,
+            left: sc.left,
+            right: sc.right,
+            target: 5 + Math.floor(Math.random() * 91), // 5..95
+          });
+        }
       }
     }
     await supabase
@@ -81,6 +101,33 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [psychicSub?.id, room?.phase]);
+
+  // A bot psychic files its clue after a humanlike pause, which trips the
+  // existing "clue arrived → open guessing" effect below.
+  const clueSentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (!room || room.phase !== "clue" || !round?.botClue) return;
+    if (psychicSub) return;
+    const key = `clue-${room.id}-${room.round_idx}`;
+    if (clueSentRef.current === key) return;
+    clueSentRef.current = key;
+    const t = setTimeout(() => {
+      supabase
+        .from("arcade_subs")
+        .insert({
+          room_id: room.id,
+          player_id: round.psychic_id,
+          round_idx: room.round_idx,
+          payload: { clue: round.botClue },
+        })
+        .then(({ error: e }) => {
+          if (e && e.code !== "23505") clueSentRef.current = null;
+        });
+    }, botDelayMs());
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id, room?.round_idx, room?.phase, round?.botClue, psychicSub?.id]);
 
   useBotSubmissions({
     room,
@@ -177,7 +224,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     <Shell title="Vibe Check · host" icon="🌡️">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} />
+          <CodeBadge code={room.code} game="vibe" />
           <p className="text-center text-fog text-sm">
             Players join at this site → Vibe Check → Join, with the code.
           </p>
@@ -203,8 +250,8 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
           </div>
           {botErr && <p className="text-lose text-sm text-center">{botErr}</p>}
           <p className="text-fog text-xs text-center">
-            Bots slide dials but never take the psychic seat — rounds rotate
-            through the humans only.
+            Bots take psychic turns too, so you get to guess as well as give
+            clues. One round per player.
           </p>
           <BigBtn
             onClick={startGame}
@@ -214,7 +261,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
               ? "Need at least 3 players (bots count)…"
               : humansOf(players).length < 1
                 ? "Need at least 1 human…"
-                : `Start (${humansOf(players).length * (settings.cycles ?? 1)} rounds)`}
+                : `Start (${players.length * (settings.cycles ?? 1)} rounds)`}
           </BigBtn>
         </div>
       )}

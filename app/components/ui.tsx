@@ -39,7 +39,8 @@ export function Shell({
   );
 }
 
-export function CodeBadge({ code }: { code: string }) {
+export function CodeBadge({ code, game }: { code: string; game?: string }) {
+  const { tv } = useSpectator();
   return (
     <div className="rounded-2xl border-2 border-glow bg-card p-4 text-center">
       <div className="text-xs text-fog uppercase tracking-[0.3em]">Join code</div>
@@ -50,6 +51,18 @@ export function CodeBadge({ code }: { code: string }) {
         Playing too? Join with this code from your phone — this screen is just the
         room&apos;s scoreboard, and anyone can run it.
       </div>
+      {/* Hosting on the same device is normal, so give it a real button rather
+          than expecting someone to type the URL by hand. Never on the TV. */}
+      {game && !tv && (
+        <a
+          href={`/${game}/play?code=${code}`}
+          target="_blank"
+          rel="noopener"
+          className="mt-3 inline-block rounded-xl border-2 border-violet px-5 py-2 font-bold hover:bg-violet/10"
+        >
+          🎮 Join this game
+        </a>
+      )}
       <TvHint />
     </div>
   );
