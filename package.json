@@ -6,7 +6,8 @@
     "dev": "next dev -H 0.0.0.0 -p 3100",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types lib/bots.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

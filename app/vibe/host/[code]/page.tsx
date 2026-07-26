@@ -1,11 +1,14 @@
 "use client";
 
 import { useRef, useState, use, useEffect } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
+import { addBot, removeBot, humansOf, botsOf, botSkill, botDialGuess } from "@/lib/bots";
+import { useBotSubmissions } from "@/lib/useBots";
 import { VIBE_SCALES } from "@/lib/content/vibes";
 import {
   pointsForDistance,
@@ -62,6 +65,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
 
+  const [botErr, setBotErr] = useState<string | null>(null);
   const settings = (room?.settings ?? {}) as { cycles?: number };
   const rounds = (room?.rounds ?? []) as VibeRound[];
   const round = room ? rounds[room.round_idx] : undefined;
@@ -79,7 +83,8 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     const order: VibeRound[] = [];
     let si = 0;
     for (let c = 0; c < cycles; c++) {
-      for (const p of shuffle(players)) {
+      // Bots guess but never take the psychic seat — clues need a human.
+      for (const p of shuffle(humansOf(players))) {
         const sc = scales[si++ % scales.length];
         order.push({
           psychic_id: p.id,
@@ -114,6 +119,16 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [psychicSub?.id, room?.phase]);
+
+  useBotSubmissions({
+    room,
+    players,
+    roundSubs,
+    active: room?.phase === "guess" && !!round,
+    tvRef,
+    excludeId: round?.psychic_id,
+    makePayload: (bot) => ({ guess: botDialGuess(round!.target, botSkill(bot.id)) }),
+  });
 
   async function reveal() {
     if (!room || !round || room.phase !== "guess") return;
@@ -209,10 +224,36 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 3}>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => setBotErr(room ? await addBot(room, players) : null)}
+              className="flex-1 rounded-xl border-2 border-line py-2.5 font-bold hover:border-glow"
+            >
+              🤖 Add a bot
+            </button>
+            {botsOf(players).length > 0 && (
+              <button
+                onClick={async () => setBotErr(await removeBot(players))}
+                className="rounded-xl border border-line px-4 py-2.5 text-fog hover:border-lose"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {botErr && <p className="text-lose text-sm text-center">{botErr}</p>}
+          <p className="text-fog text-xs text-center">
+            Bots slide dials but never take the psychic seat — rounds rotate
+            through the humans only.
+          </p>
+          <BigBtn
+            onClick={startGame}
+            disabled={busy || players.length < 3 || humansOf(players).length < 1}
+          >
             {players.length < 3
-              ? "Need at least 3 players…"
-              : `Start (${players.length * (settings.cycles ?? 1)} rounds)`}
+              ? "Need at least 3 players (bots count)…"
+              : humansOf(players).length < 1
+                ? "Need at least 1 human…"
+                : `Start (${humansOf(players).length * (settings.cycles ?? 1)} rounds)`}
           </BigBtn>
         </div>
       )}
@@ -290,9 +331,9 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
           <div className="w-full">
             <Leaderboard players={players} />
           </div>
-          <a href="/vibe/host" className="underline text-fog">
+          <Link href="/vibe/host" className="underline text-fog">
             Play again with a new room
-          </a>
+          </Link>
         </div>
       )}
     </Shell>
