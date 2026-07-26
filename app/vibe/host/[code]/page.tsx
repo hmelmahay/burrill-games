@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
 import { VIBE_SCALES } from "@/lib/content/vibes";
@@ -57,6 +58,7 @@ export function Dial({
 export default function VibeHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("vibe", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
 
@@ -97,6 +99,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
 
   // Psychic sent a clue → open guessing.
   useEffect(() => {
+    if (tvRef.current) return;
     if (!room || room.phase !== "clue" || !psychicSub) return;
     const key = `guess-${room.round_idx}`;
     if (advancingRef.current === key) return;
@@ -161,6 +164,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
   }
 
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "guess" && guesserCount > 0 && guesses.length >= guesserCount) {
       reveal();
     }

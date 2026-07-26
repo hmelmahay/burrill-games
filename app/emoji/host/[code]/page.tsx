@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase, EmojiRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import {
   Shell,
   CodeBadge,
@@ -23,6 +24,7 @@ import {
 export default function EmojiHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("emoji", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -101,6 +103,7 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
   }
 
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "guess" && players.length > 0 && answered.length >= players.length) {
       reveal();
     }

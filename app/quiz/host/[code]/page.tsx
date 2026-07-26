@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase, QuizRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import {
   Shell,
   CodeBadge,
@@ -24,6 +25,7 @@ import {
 export default function QuizHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("quiz", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -101,8 +103,9 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setBusy(false);
   }
 
-  // Auto-reveal when everyone has answered.
+  // Auto-reveal when everyone has answered. (TV copies must never do this.)
   useEffect(() => {
+    if (tvRef.current) return;
     if (
       room?.phase === "question" &&
       players.length > 0 &&

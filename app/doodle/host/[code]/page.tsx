@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import {
   Shell,
   CodeBadge,
@@ -29,6 +30,7 @@ type WordEntry = { w: string; d: string };
 export default function DoodleHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("doodle", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
   const correctOrderRef = useRef<string[]>([]);
@@ -91,6 +93,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
 
   // Drawer picked a word → open the drawing round.
   useEffect(() => {
+    if (tvRef.current) return;
     if (!room || room.phase !== "pick" || !word) return;
     const key = `draw-${room.round_idx}`;
     if (advancingRef.current === key) return;
@@ -155,6 +158,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
 
   // Everyone got it → end the round automatically.
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "draw" && guessers.length > 0 && correctSet.size >= guessers.length) {
       endRound();
     }

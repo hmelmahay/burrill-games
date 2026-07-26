@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
 import {
@@ -16,6 +17,7 @@ import {
 export default function TTHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("twotruths", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
 
@@ -53,6 +55,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
 
   // Author handed in their statements → publish them (lie withheld) and open voting.
   useEffect(() => {
+    if (tvRef.current) return;
     if (!room || room.phase !== "write" || !authorSub) return;
     const key = `vote-${room.round_idx}`;
     if (advancingRef.current === key) return;
@@ -120,6 +123,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
 
   // Auto-reveal once every voter has voted.
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "vote" && voterCount > 0 && votes.length >= voterCount) {
       reveal();
     }

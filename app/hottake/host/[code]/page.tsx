@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import {
   CROWD_POINTS,
@@ -16,6 +17,7 @@ type HotTakeRound = { p: string };
 export default function HotTakeHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("hottake", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -84,6 +86,7 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
   }
 
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "vote" && players.length > 0 && answered.length >= players.length) {
       reveal();
     }

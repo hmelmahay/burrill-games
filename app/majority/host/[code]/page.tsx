@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase, MajorityRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import {
   PREDICT_POINTS,
@@ -14,6 +15,7 @@ import {
 export default function MajorityHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("majority", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -89,8 +91,9 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
     setBusy(false);
   }
 
-  // Auto-reveal when everyone has voted.
+  // Auto-reveal when everyone has voted. (TV copies must never do this.)
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "vote" && players.length > 0 && answered.length >= players.length) {
       reveal();
     }

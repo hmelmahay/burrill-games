@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Player } from "@/lib/supabase";
+import { useSpectator } from "@/lib/useSpectator";
 
 export function Shell({
   title,
@@ -12,13 +14,23 @@ export function Shell({
   icon: string;
   children: React.ReactNode;
 }) {
+  const { tv } = useSpectator();
   return (
-    <main className="flex flex-1 flex-col gap-4 p-4 max-w-2xl mx-auto w-full">
+    <main
+      className={`flex flex-1 flex-col gap-4 p-4 max-w-2xl mx-auto w-full ${
+        tv ? "tv-mode" : ""
+      }`}
+    >
       <div className="flex items-center justify-between">
         <Link href="/" className="text-sm text-fog underline">
           ← games
         </Link>
         <span className="text-sm font-semibold text-fog">
+          {tv && (
+            <span className="mr-2 rounded-full border border-violet px-2 py-0.5 text-violet">
+              📺 TV scoreboard
+            </span>
+          )}
           {icon} {title}
         </span>
       </div>
@@ -38,6 +50,24 @@ export function CodeBadge({ code }: { code: string }) {
         Playing too? Join with this code from your phone — this screen is just the
         room&apos;s scoreboard, and anyone can run it.
       </div>
+      <TvHint />
+    </div>
+  );
+}
+
+// Shows the read-only big-screen address for this room (hidden on the TV itself).
+function TvHint() {
+  const { tv } = useSpectator();
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    setUrl(`${window.location.host}${window.location.pathname}?tv=1`);
+  }, []);
+  if (tv || !url) return null;
+  return (
+    <div className="text-fog text-xs mt-1.5">
+      📺 Got a TV? Open{" "}
+      <span className="font-mono text-glow break-all">{url}</span> in its browser
+      for a controls-free scoreboard.
     </div>
   );
 }

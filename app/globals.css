@@ -28,3 +28,11 @@ body {
   100% { transform: scale(1); opacity: 1; }
 }
 .pop-in { animation: popIn 0.25s ease-out; }
+
+/* TV/spectator mode: a host screen opened with ?tv=1 shows everything,
+   controls nothing. */
+.tv-mode button,
+.tv-mode select,
+.tv-mode input {
+  display: none !important;
+}

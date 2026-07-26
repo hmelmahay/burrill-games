@@ -3,6 +3,7 @@
 import { useRef, useState, use, useEffect } from "react";
 import { supabase, BallparkRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
 import {
   RANK_POINTS,
@@ -15,6 +16,7 @@ import {
 export default function BallparkHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("ballpark", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -94,6 +96,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
   }
 
   useEffect(() => {
+    if (tvRef.current) return;
     if (room?.phase === "guess" && players.length > 0 && answered.length >= players.length) {
       reveal();
     }
