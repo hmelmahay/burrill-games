@@ -15,6 +15,9 @@ export type VibeRound = {
   left: string;
   right: string;
   target: number; // 0-100, secret until reveal
+  // Set when the psychic is a bot: the clue it will send, chosen with the
+  // target so the two always agree.
+  botClue?: string;
 };
 export type VibeResult = {
   player_id: string;

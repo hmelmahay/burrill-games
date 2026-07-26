@@ -2,64 +2,31 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { Shell, Leaderboard } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { VibeRound, VibePhaseData } from "@/app/vibe/constants";
 import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
+import { addBot, removeBot, botsOf, humansOf } from "@/lib/bots";
+import { PlayerPanel } from "@/app/vibe/PlayerPanel";
 
 export default function VibePlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("vibe", code);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [clue, setClue] = useState("");
-  const [dial, setDial] = useState(50);
-  const [sent, setSent] = useState(false);
+  const [botErr, setBotErr] = useState<string | null>(null);
 
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
 
-  useEffect(() => {
-    setClue("");
-    setDial(50);
-    setSent(false);
-  }, [room?.round_idx]);
 
   const rounds = (room?.rounds ?? []) as VibeRound[];
   const round = room ? rounds[room.round_idx] : undefined;
   const phaseData = (room?.phase_data ?? {}) as VibePhaseData;
   const me = players.find((p) => p.id === playerId);
-  const isPsychic = round?.psychic_id === playerId;
-  const mySub = subs.find(
-    (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
-  );
-  const locked = sent || !!mySub;
 
-  async function sendClue() {
-    if (!room || !playerId || locked || !clue.trim()) return;
-    setSent(true);
-    const { error: e } = await supabase.from("arcade_subs").insert({
-      room_id: room.id,
-      player_id: playerId,
-      round_idx: room.round_idx,
-      payload: { clue: clue.trim() },
-    });
-    if (e && e.code !== "23505") setSent(false);
-  }
 
-  async function sendGuess() {
-    if (!room || !playerId || locked || isPsychic) return;
-    setSent(true);
-    const { error: e } = await supabase.from("arcade_subs").insert({
-      room_id: room.id,
-      player_id: playerId,
-      round_idx: room.round_idx,
-      payload: { guess: dial },
-    });
-    if (e && e.code !== "23505") setSent(false);
-  }
 
   if (error)
     return (
@@ -90,107 +57,37 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
           <p className="text-3xl">🎉</p>
           <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
           <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
-
-      {room.phase === "clue" && round && isPsychic && !locked && (
-        <div className="flex flex-col gap-4">
-          <h1 className="text-xl font-extrabold text-center">🔮 You&apos;re the psychic!</h1>
-          <div className="flex justify-between text-lg font-bold">
-            <span>← {round.left}</span>
-            <span>{round.right} →</span>
-          </div>
-          <div className="relative h-6 rounded-full bg-gradient-to-r from-violet to-glow">
-            <div
-              className="absolute top-[-6px] bottom-[-6px] w-2 bg-win rounded"
-              style={{ left: `calc(${round.target}% - 4px)` }}
-            />
-          </div>
-          <p className="text-fog text-sm text-center">
-            The secret spot is at the green line ({round.target}/100). Write a clue that
-            points there — without saying the scale words.
+          <p className="text-fog text-sm">
+            {humansOf(players).length} player
+            {humansOf(players).length === 1 ? "" : "s"}
+            {botsOf(players).length > 0 && ` + ${botsOf(players).length} bot${
+              botsOf(players).length === 1 ? "" : "s"
+            }`}
           </p>
-          <input
-            value={clue}
-            onChange={(e) => setClue(e.target.value)}
-            placeholder="Your clue… (e.g. 'leftover pizza')"
-            maxLength={60}
-            autoComplete="off"
-            className="rounded-xl border-2 border-glow bg-card px-4 py-4 text-lg"
-            onKeyDown={(e) => e.key === "Enter" && sendClue()}
-          />
-          <button
-            onClick={sendClue}
-            disabled={!clue.trim()}
-            className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg disabled:opacity-40"
-          >
-            Send clue
-          </button>
-        </div>
-      )}
-
-      {room.phase === "clue" && round && isPsychic && locked && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2">
-          <p className="text-3xl">📡</p>
-          <p className="font-bold text-xl">Clue sent!</p>
-        </div>
-      )}
-
-      {room.phase === "clue" && round && !isPsychic && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2">
-          <p className="text-3xl">🔮</p>
-          <p className="font-bold text-xl">{round.psychic_name} is tuning in…</p>
-        </div>
-      )}
-
-      {room.phase === "guess" && round && isPsychic && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2">
-          <p className="text-3xl">👀</p>
-          <p className="font-bold text-xl">They&apos;re reading your mind…</p>
-          <p className="text-fog text-sm">+150 for every dial that lands near your spot.</p>
-        </div>
-      )}
-
-      {room.phase === "guess" && round && !isPsychic && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl bg-card border-2 border-glow p-4 text-center">
-            <div className="text-fog text-xs uppercase tracking-widest">
-              {round.psychic_name}&apos;s clue
-            </div>
-            <div className="text-xl font-extrabold">“{phaseData.clue}”</div>
-          </div>
-          <div className="flex justify-between font-bold">
-            <span>← {round.left}</span>
-            <span>{round.right} →</span>
-          </div>
-          {!locked ? (
-            <>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={dial}
-                onChange={(e) => setDial(Number(e.target.value))}
-                className="w-full h-10 accent-[#ff9f1c]"
-              />
-              <div className="text-center font-mono text-3xl font-bold">{dial}</div>
+          {/* The people actually playing should set the table size, not
+              whoever happens to be holding the host screen. */}
+          <div className="flex items-center gap-3 w-full max-w-xs mt-2">
+            <button
+              onClick={async () => setBotErr(await addBot(room, players))}
+              className="flex-1 rounded-xl border-2 border-line py-2.5 font-bold hover:border-glow"
+            >
+              🤖 Add a bot
+            </button>
+            {botsOf(players).length > 0 && (
               <button
-                onClick={sendGuess}
-                className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg"
+                onClick={async () => setBotErr(await removeBot(players))}
+                className="rounded-xl border border-line px-4 py-2.5 text-fog hover:border-lose"
               >
-                Lock in {dial}
+                Remove
               </button>
-            </>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-6">
-              <p className="font-bold text-2xl font-mono">
-                🔒 {(mySub?.payload as { guess?: number } | undefined)?.guess ?? dial}
-              </p>
-              <p className="text-fog">Waiting for everyone…</p>
-            </div>
-          )}
+            )}
+          </div>
+          {botErr && <p className="text-lose text-sm">{botErr}</p>}
         </div>
+      )}
+
+      {(room.phase === "clue" || room.phase === "guess") && playerId && (
+        <PlayerPanel room={room} players={players} subs={subs} playerId={playerId} />
       )}
 
       {room.phase === "reveal" && round && (

@@ -170,7 +170,7 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
     <Shell title="Scatter Sprint · host" icon="📝">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} />
+          <CodeBadge code={room.code} game="scatter" />
           <p className="text-center text-fog text-sm">
             Players join at this site → Scatter Sprint → Join, with the code.
           </p>

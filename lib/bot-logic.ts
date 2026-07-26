@@ -90,6 +90,18 @@ export function botPredict(
   return rand() < accuracy ? likely : other;
 }
 
+// --- Vibe Check: bots as psychic ---------------------------------------
+
+// Picks a zone (0-4) and a secret spot inside it, so a bot psychic's clue
+// always honestly points at its own target. Spots avoid the very edges,
+// matching the 5-95 range human psychics get.
+export function botPsychicSpot(rand: () => number = Math.random): { zone: number; target: number } {
+  const zone = Math.min(4, Math.floor(rand() * 5));
+  const lo = zone * 20 + (zone === 0 ? 5 : 1);
+  const hi = zone * 20 + (zone === 4 ? 15 : 19);
+  return { zone, target: lo + Math.floor(rand() * (hi - lo + 1)) };
+}
+
 // --- Quiz Rush ----------------------------------------------------------
 
 // Which of four choices a bot picks. Sharp bots are usually right; fuzzy bots

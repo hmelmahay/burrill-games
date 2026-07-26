@@ -137,7 +137,7 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
     <Shell title="Hot Take · host" icon="🔥">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} />
+          <CodeBadge code={room.code} game="hottake" />
           <p className="text-center text-fog text-sm">
             Players join at this site → Hot Take → Join, with the code.
           </p>
