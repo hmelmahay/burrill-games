@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, use, useEffect } from "react";
+import Link from "next/link";
 import { supabase, QuizRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
@@ -21,6 +22,8 @@ import {
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
+import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizChoice, botQuizDelayMs } from "@/lib/bots";
+import { useBotSubmissions } from "@/lib/useBots";
 
 export default function QuizHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -38,6 +41,19 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
   const answeredCount = new Set(
     subs.filter((s) => s.round_idx === room?.round_idx).map((s) => s.player_id),
   ).size;
+
+  const [botErr, setBotErr] = useState<string | null>(null);
+  const roundSubs = subs.filter((s) => s.round_idx === room?.round_idx);
+
+  useBotSubmissions({
+    room,
+    players,
+    roundSubs,
+    active: room?.phase === "question" && !!round,
+    tvRef,
+    makePayload: (bot) => ({ choice: botQuizChoice(round!.answer, botSkill(bot.id)) }),
+    delayMs: (bot) => botQuizDelayMs(botSkill(bot.id), answerSeconds),
+  });
 
   const left = useCountdown(
     `${room?.round_idx}-${room?.phase}`,
@@ -167,8 +183,30 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 1}>
-            {players.length < 1 ? "Waiting for players…" : `Start (${totalQuestions} questions)`}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => setBotErr(room ? await addBot(room, players) : null)}
+              className="flex-1 rounded-xl border-2 border-line py-2.5 font-bold hover:border-glow"
+            >
+              🤖 Add a bot
+            </button>
+            {botsOf(players).length > 0 && (
+              <button
+                onClick={async () => setBotErr(await removeBot(players))}
+                className="rounded-xl border border-line px-4 py-2.5 text-fog hover:border-lose"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {botErr && <p className="text-lose text-sm text-center">{botErr}</p>}
+          <BigBtn
+            onClick={startGame}
+            disabled={busy || players.length < 1 || humansOf(players).length < 1}
+          >
+            {humansOf(players).length < 1
+              ? "Waiting for a human…"
+              : `Start (${totalQuestions} questions)`}
           </BigBtn>
         </div>
       )}
@@ -250,9 +288,9 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
           <div className="w-full">
             <Leaderboard players={players} />
           </div>
-          <a href="/quiz/host" className="underline text-fog">
+          <Link href="/quiz/host" className="underline text-fog">
             Play again with a new room
-          </a>
+          </Link>
         </div>
       )}
     </Shell>

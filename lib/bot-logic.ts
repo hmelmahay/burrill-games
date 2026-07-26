@@ -90,6 +90,76 @@ export function botPredict(
   return rand() < accuracy ? likely : other;
 }
 
+// --- Quiz Rush ----------------------------------------------------------
+
+// Which of four choices a bot picks. Sharp bots are usually right; fuzzy bots
+// miss often. A wrong bot picks uniformly among the wrong answers, so the
+// host's answer-distribution bars stay believable.
+export function botQuizChoice(
+  answer: number,
+  skill: number,
+  rand: () => number = Math.random,
+): number {
+  const accuracy = 0.35 + skill * 0.55;
+  if (rand() < accuracy) return answer;
+  const wrong = [0, 1, 2, 3].filter((i) => i !== answer);
+  return wrong[Math.min(wrong.length - 1, Math.floor(rand() * wrong.length))];
+}
+
+// How long a bot takes to answer a quiz question. Quiz Rush scores by server
+// arrival time, so this IS the bot's speed score — it must stay inside the
+// answer window or the bot would effectively never answer.
+export function botQuizDelayMs(
+  skill: number,
+  answerSeconds: number,
+  rand: () => number = Math.random,
+): number {
+  const frac = (1 - skill) * 0.55 + rand() * 0.3 + 0.08;
+  return Math.round(Math.min(0.92, Math.max(0.05, frac)) * answerSeconds * 1000);
+}
+
+// --- Hot Take -----------------------------------------------------------
+
+// Hot Take needs a plurality to form, so bots need shared instincts about who
+// the prompt "obviously" describes. Ranks candidates deterministically from
+// the prompt so every bot sees the same favourite, without any coordination.
+export function hotTakeFavourite(prompt: string, candidateIds: string[]): string | null {
+  if (candidateIds.length === 0) return null;
+  let best = candidateIds[0];
+  let bestScore = -1;
+  for (const id of candidateIds) {
+    let h = 2166136261;
+    const s = prompt + "|" + id;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    if (h > bestScore) {
+      bestScore = h;
+      best = id;
+    }
+  }
+  return best;
+}
+
+// A bot's Hot Take vote: usually the room favourite, sometimes a wildcard.
+export function botHotTakeVote(
+  prompt: string,
+  candidateIds: string[],
+  skill: number,
+  rand: () => number = Math.random,
+): string | null {
+  if (candidateIds.length === 0) return null;
+  const fav = hotTakeFavourite(prompt, candidateIds);
+  // Tuned so a plurality reliably forms even in a small room: with three
+  // bots and four candidates, 0.5-0.9 left a quarter of rounds tied.
+  const followsCrowd = 0.62 + skill * 0.33;
+  if (fav && rand() < followsCrowd) return fav;
+  const others = candidateIds.filter((id) => id !== fav);
+  if (others.length === 0) return fav;
+  return others[Math.min(others.length - 1, Math.floor(rand() * others.length))];
+}
+
 // A dial guess near the target: sharp bots land ~±10, fuzzy bots ~±30.
 // Sum of three uniforms approximates a bell curve, so guesses cluster near
 // the target with occasional wide misses — like a real player reading a clue.
