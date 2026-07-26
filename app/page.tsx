@@ -1,6 +1,13 @@
 import Link from "next/link";
 
-const GAMES = [
+// bots: game has house bots — playable with this many humans (bots fill the rest).
+const GAMES: {
+  slug: string;
+  icon: string;
+  name: string;
+  desc: string;
+  bots?: { minHumans: number };
+}[] = [
   {
     slug: "needle",
     icon: "🎵",
@@ -60,6 +67,7 @@ const GAMES = [
     icon: "🌡️",
     name: "Vibe Check",
     desc: "The psychic hides a spot on a scale — Hot ↔ Cold — and gives one clue. Slide your dial to where it lands.",
+    bots: { minHumans: 1 },
   },
 ];
 
@@ -83,6 +91,12 @@ export default function Home() {
               {g.icon} {g.name}
             </h2>
             <p className="text-fog text-sm">{g.desc}</p>
+            {g.bots && (
+              <span className="self-start rounded-full border border-violet/60 bg-violet/10 px-2.5 py-0.5 text-xs font-semibold">
+                🤖 Bot-friendly — playable with{" "}
+                {g.bots.minHumans === 1 ? "just 1 human" : `${g.bots.minHumans}+ humans`}
+              </span>
+            )}
             <div className="flex gap-3">
               <Link
                 href={`/${g.slug}/host`}
