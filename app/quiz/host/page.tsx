@@ -12,6 +12,8 @@ export default function QuizHostSetup() {
   const router = useRouter();
   const [numQuestions, setNumQuestions] = useState(10);
   const [answerSeconds, setAnswerSeconds] = useState(20);
+  const [hints, setHints] = useState(false);
+  const [allowChange, setAllowChange] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -22,6 +24,8 @@ export default function QuizHostSetup() {
     const { room, error } = await createRoom("quiz", rounds, {
       numQuestions,
       answerSeconds,
+      hints,
+      allowChange,
     });
     if (error || !room) {
       setErr(error ?? "Couldn't create the room.");
@@ -60,6 +64,38 @@ export default function QuizHostSetup() {
             <option value={15}>15</option>
             <option value={20}>20</option>
             <option value={30}>30</option>
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span className="font-semibold">
+            Hints
+            <span className="block text-xs text-fog font-normal">
+              Wrong answers get struck at ½ and ¼ time
+            </span>
+          </span>
+          <select
+            value={hints ? "on" : "off"}
+            onChange={(e) => setHints(e.target.value === "on")}
+            className="rounded-lg border border-line bg-card px-3 py-2"
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span className="font-semibold">
+            Answer changing
+            <span className="block text-xs text-fog font-normal">
+              Switch until time's up — points re-time from your last pick
+            </span>
+          </span>
+          <select
+            value={allowChange ? "on" : "off"}
+            onChange={(e) => setAllowChange(e.target.value === "on")}
+            className="rounded-lg border border-line bg-card px-3 py-2"
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
           </select>
         </label>
         <BigBtn onClick={start} disabled={busy}>

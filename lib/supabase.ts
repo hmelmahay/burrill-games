@@ -28,6 +28,8 @@ export type Room = {
   rounds: unknown[];
   phase_data: Record<string, unknown>;
   settings: Record<string, unknown>;
+  // Stamped server-side by a trigger whenever phase/round changes.
+  phase_started_at: string | null;
   created_at: string;
 };
 

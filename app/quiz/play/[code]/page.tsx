@@ -6,7 +6,13 @@ import { supabase, QuizRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
-import { CHOICE_COLORS, CHOICE_SHAPES, QuizPhaseData } from "@/app/quiz/constants";
+import {
+  CHOICE_COLORS,
+  CHOICE_LETTERS,
+  eliminatedChoices,
+  QuizSettings,
+  QuizPhaseData,
+} from "@/app/quiz/constants";
 
 export default function QuizPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -18,8 +24,10 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
 
-  const settings = (room?.settings ?? {}) as { numQuestions?: number; answerSeconds?: number };
+  const settings = (room?.settings ?? {}) as QuizSettings;
   const answerSeconds = settings.answerSeconds ?? 20;
+  const allowChange = !!settings.allowChange;
+  const [switching, setSwitching] = useState(false);
   const round = room ? (room.rounds[room.round_idx] as QuizRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as QuizPhaseData;
   const me = players.find((p) => p.id === playerId);
@@ -48,6 +56,22 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
       payload: { choice },
     });
     if (e && e.code !== "23505") setPicked(null); // let them retry on real failures
+  }
+
+  // Answer changing: delete + reinsert so the server timestamp (and therefore
+  // the speed score) re-times from the final pick.
+  async function switchTo(i: number) {
+    if (!room || !playerId || !mySub || switching || i === chosen || left === 0) return;
+    setSwitching(true);
+    await supabase.from("arcade_subs").delete().eq("id", mySub.id);
+    const { error: e } = await supabase.from("arcade_subs").insert({
+      room_id: room.id,
+      player_id: playerId,
+      round_idx: room.round_idx,
+      payload: { choice: i },
+    });
+    if (!e) setPicked(i);
+    setSwitching(false);
   }
 
   if (error)
@@ -88,19 +112,35 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
         <div className="flex flex-col gap-4 flex-1">
           <Countdown left={left} total={answerSeconds} />
           <h1 className="text-xl font-extrabold text-center">{round.q}</h1>
-          {chosen == null && left > 0 ? (
-            <div className="grid grid-cols-2 gap-3 flex-1">
-              {round.choices.map((c, i) => (
-                <button
-                  key={i}
-                  onClick={() => answer(i)}
-                  className="rounded-xl p-4 font-bold text-white text-lg active:scale-95 transition"
-                  style={{ background: CHOICE_COLORS[i] }}
-                >
-                  {CHOICE_SHAPES[i]}
-                  <span className="block text-base">{c}</span>
-                </button>
-              ))}
+          {left > 0 && (chosen == null || allowChange) ? (
+            <div className="flex flex-col gap-2">
+              {round.choices.map((c, i) => {
+                const dead = settings.hints
+                  ? eliminatedChoices(room.round_idx, round.answer, left, answerSeconds).includes(i)
+                  : false;
+                const selected = chosen === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => (chosen == null ? answer(i) : switchTo(i))}
+                    disabled={dead || switching}
+                    className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-white active:scale-[0.98] transition ${
+                      dead ? "opacity-35 line-through" : ""
+                    } ${selected ? "ring-4 ring-white" : chosen != null ? "opacity-70" : ""}`}
+                    style={{ background: CHOICE_COLORS[i] }}
+                  >
+                    <span className="w-9 h-9 shrink-0 rounded-lg bg-black/25 flex items-center justify-center text-lg font-extrabold">
+                      {dead ? "✕" : CHOICE_LETTERS[i]}
+                    </span>
+                    <span className="font-bold leading-snug">{c}</span>
+                  </button>
+                );
+              })}
+              {chosen != null && allowChange && (
+                <p className="text-fog text-xs text-center">
+                  Tap another answer to change — points re-time from your last pick.
+                </p>
+              )}
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2">
@@ -110,7 +150,7 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
                     className="rounded-xl px-6 py-4 font-bold text-white text-xl"
                     style={{ background: CHOICE_COLORS[chosen] }}
                   >
-                    {CHOICE_SHAPES[chosen]} {round.choices[chosen]}
+                    {CHOICE_LETTERS[chosen]} · {round.choices[chosen]}
                   </div>
                   <p className="text-fog">Locked in! Waiting for everyone…</p>
                 </>
@@ -141,7 +181,7 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
                     : "Wrong answer"}
               </div>
               <div className="text-sm mt-1 opacity-80">
-                Answer: {CHOICE_SHAPES[round.answer]} {round.choices[round.answer]}
+                Answer: {CHOICE_LETTERS[round.answer]} — {round.choices[round.answer]}
               </div>
             </div>
           )}

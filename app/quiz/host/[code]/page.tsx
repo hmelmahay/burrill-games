@@ -14,10 +14,10 @@ import {
 } from "@/app/components/ui";
 import {
   CHOICE_COLORS,
-  CHOICE_SHAPES,
-  BASE_POINTS,
-  SPEED_BONUS,
-  LATE_BONUS,
+  CHOICE_LETTERS,
+  pointsForElapsed,
+  eliminatedChoices,
+  QuizSettings,
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
@@ -29,12 +29,15 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
-  const settings = (room?.settings ?? {}) as { numQuestions?: number; answerSeconds?: number };
+  const settings = (room?.settings ?? {}) as QuizSettings;
   const answerSeconds = settings.answerSeconds ?? 20;
   const totalQuestions = Math.min(settings.numQuestions ?? 10, room?.rounds.length ?? 0);
   const round = room ? (room.rounds[room.round_idx] as QuizRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as QuizPhaseData;
-  const answered = subs.filter((s) => s.round_idx === room?.round_idx);
+  // Unique players (answer-changing can briefly leave two rows in local state).
+  const answeredCount = new Set(
+    subs.filter((s) => s.round_idx === room?.round_idx).map((s) => s.player_id),
+  ).size;
 
   const left = useCountdown(
     `${room?.round_idx}-${room?.phase}`,
@@ -66,22 +69,36 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
       .eq("round_idx", room.round_idx)
       .order("created_at", { ascending: true });
 
-    const rows = (subRows ?? []) as { player_id: string; payload: { choice?: number } }[];
+    const rows = (subRows ?? []) as {
+      player_id: string;
+      payload: { choice?: number };
+      created_at: string;
+    }[];
+    // Question start was stamped server-side by the DB trigger.
+    const { data: fresh } = await supabase
+      .from("arcade_rooms")
+      .select("phase_started_at")
+      .eq("id", room.id)
+      .single();
+    const startMs = fresh?.phase_started_at
+      ? new Date(fresh.phase_started_at as string).getTime()
+      : null;
     const counts = [0, 0, 0, 0];
-    let correctRank = 0;
     const results: QuizResult[] = players.map((p) => {
       const sub = rows.find((r) => r.player_id === p.id);
       const choice = sub?.payload.choice ?? null;
       if (choice != null && choice >= 0 && choice < 4) counts[choice]++;
       return { player_id: p.id, name: p.name, gained: 0, correct: false, choice };
     });
-    // Score in submission order so rank bonuses go to the fastest.
     for (const r of rows) {
       const res = results.find((x) => x.player_id === r.player_id);
       if (!res || r.payload.choice !== round.answer) continue;
       res.correct = true;
-      res.gained = BASE_POINTS + (SPEED_BONUS[correctRank] ?? LATE_BONUS);
-      correctRank++;
+      const elapsedMs =
+        startMs != null
+          ? Math.max(0, new Date(r.created_at).getTime() - startMs)
+          : answerSeconds * 500; // fallback: score as a half-time answer
+      res.gained = pointsForElapsed(elapsedMs, answerSeconds);
     }
 
     await Promise.all(
@@ -103,18 +120,19 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setBusy(false);
   }
 
-  // Auto-reveal when everyone has answered. (TV copies must never do this.)
+  // Auto-reveal when everyone has answered — unless answer-changing is on,
+  // in which case the round runs the full clock so people can switch.
+  // (TV copies must never do this.)
   useEffect(() => {
     if (tvRef.current) return;
-    if (
-      room?.phase === "question" &&
-      players.length > 0 &&
-      answered.length >= players.length
-    ) {
+    if (room?.phase !== "question" || players.length === 0) return;
+    if (settings.allowChange) {
+      if (left === 0) reveal();
+    } else if (answeredCount >= players.length) {
       reveal();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answered.length, players.length, room?.phase]);
+  }, [answeredCount, players.length, room?.phase, left]);
 
   async function next() {
     if (!room) return;
@@ -162,25 +180,38 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               Question {room.round_idx + 1}/{totalQuestions} · {round.cat}
             </span>
             <span>
-              {answered.length}/{players.length} answered
+              {answeredCount}/{players.length} answered
             </span>
           </div>
           <Countdown left={left} total={answerSeconds} />
           <h1 className="text-2xl font-extrabold text-center py-4">{round.q}</h1>
           <div className="grid grid-cols-2 gap-2">
-            {round.choices.map((c, i) => (
-              <div
-                key={i}
-                className="rounded-xl p-4 font-bold text-white text-center"
-                style={{ background: CHOICE_COLORS[i] }}
-              >
-                {CHOICE_SHAPES[i]} {c}
-              </div>
-            ))}
+            {round.choices.map((c, i) => {
+              const dead = settings.hints
+                ? eliminatedChoices(room.round_idx, round.answer, left, answerSeconds).includes(i)
+                : false;
+              return (
+                <div
+                  key={i}
+                  className={`rounded-xl p-4 font-bold text-white text-center ${
+                    dead ? "opacity-30 line-through" : ""
+                  }`}
+                  style={{ background: CHOICE_COLORS[i] }}
+                >
+                  {CHOICE_LETTERS[i]} · {c}
+                </div>
+              );
+            })}
           </div>
           <BigBtn onClick={reveal} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
             {left === 0 ? "Time! Reveal answers" : "Reveal early"}
           </BigBtn>
+          {(settings.hints || settings.allowChange) && (
+            <p className="text-fog text-xs text-center">
+              {settings.hints && "Hints strike wrong answers at ½ and ¼ time. "}
+              {settings.allowChange && "Players can change answers until time runs out."}
+            </p>
+          )}
         </div>
       )}
 
@@ -199,7 +230,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
                 }`}
                 style={{ background: CHOICE_COLORS[i] }}
               >
-                {CHOICE_SHAPES[i]} {c}
+                {CHOICE_LETTERS[i]} · {c}
                 <span className="block text-sm font-normal">
                   {(phaseData.counts ?? [])[i] ?? 0} votes
                 </span>

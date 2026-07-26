@@ -101,6 +101,14 @@ export function useRoom(game: string, code: string) {
             ),
           ),
       )
+      .on(
+        // Answer-changing deletes + reinserts; drop the old row locally.
+        // (Realtime can't filter DELETEs by room_id — matching by id is safe.)
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "arcade_subs" },
+        (payload) =>
+          setSubs((ss) => ss.filter((s) => s.id !== (payload.old as { id: string }).id)),
+      )
       .subscribe();
     // Backstop poll: Realtime very occasionally drops events on phone lock/unlock.
     const poll = setInterval(refresh, 5000);
@@ -114,20 +122,23 @@ export function useRoom(game: string, code: string) {
   return { room, players, subs, error, refresh };
 }
 
-// Countdown that starts when `key` changes (e.g. phase or round change).
+// Countdown that restarts when `key` changes (e.g. phase or round change).
+// The clock resets during render via a ref comparison — not in an effect — so
+// a rapid phase→phase transition can never leave it stuck at a stale value.
+// The interval exists only to force re-renders; `left` is derived on the spot.
 export function useCountdown(key: string | number, seconds: number, active: boolean) {
-  const [left, setLeft] = useState(seconds);
+  const keyRef = useRef(key);
+  const startRef = useRef(Date.now());
+  if (keyRef.current !== key) {
+    keyRef.current = key;
+    startRef.current = Date.now();
+  }
+  const [, force] = useState(0);
   useEffect(() => {
     if (!active) return;
-    setLeft(seconds);
-    const start = Date.now();
-    const t = setInterval(() => {
-      const remaining = Math.max(0, seconds - Math.floor((Date.now() - start) / 1000));
-      setLeft(remaining);
-      if (remaining <= 0) clearInterval(t);
-    }, 250);
+    const t = setInterval(() => force((n) => n + 1), 250);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, active, seconds]);
-  return left;
+  }, [active, key]);
+  if (!active) return seconds;
+  return Math.max(0, seconds - Math.floor((Date.now() - startRef.current) / 1000));
 }
