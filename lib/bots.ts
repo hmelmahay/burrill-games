@@ -5,8 +5,12 @@ import { supabase, Player, Room } from "./supabase";
 export const BOT_SUFFIX = " \u{1F916}";
 export const BOT_NAMES = ["Ada", "Brick", "Cleo", "Dot", "Ember", "Fig", "Gus"];
 
+const BOT_FULL_NAMES = new Set(BOT_NAMES.map((n) => n + BOT_SUFFIX));
+
+// Exact-match against the house-bot roster, so a human who names
+// themselves "Dave 🤖" is still a human (and still gets the psychic seat).
 export function isBot(p: { name: string }): boolean {
-  return p.name.endsWith(BOT_SUFFIX);
+  return BOT_FULL_NAMES.has(p.name);
 }
 export function humansOf(players: Player[]): Player[] {
   return players.filter((p) => !isBot(p));
