@@ -24,7 +24,6 @@ export type QuizSettings = {
   allowChange?: boolean;
 };
 
-// Base points for a correct answer + bonus by speed rank among correct answers.
 // Time-based scoring, exact to the point: an instant correct answer is worth
 // ~1000, sliding down to just CORRECT_MIN at the buzzer — speed is nearly
 // everything, but a correct answer always beats a wrong one (0). Elapsed time
@@ -35,7 +34,7 @@ export const SPEED_MAX = 900;
 export function pointsForElapsed(elapsedMs: number, answerSeconds: number): number {
   const frac = Math.max(0, 1 - elapsedMs / (answerSeconds * 1000));
   return CORRECT_MIN + Math.round(SPEED_MAX * frac);
-} // correct but slower than the top 5
+}
 
 export type QuizResult = {
   player_id: string;
