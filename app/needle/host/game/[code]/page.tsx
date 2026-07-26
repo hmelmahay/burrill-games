@@ -264,6 +264,10 @@ export default function HostGame({
   const nextId =
     game?.play_order.find((id) => !calledSet.has(id)) ?? null;
   const lastCalled = game?.called[game.called.length - 1];
+  // On a TV in front of the room, song titles are the answers — mask them
+  // except on Beginner (auto-mark makes them public) or once the game ends.
+  const hideTitles =
+    tv && game != null && game.difficulty !== "beginner" && game.status !== "ended";
 
   function nextSong() {
     if (!game || !nextId) return;
@@ -512,7 +516,11 @@ export default function HostGame({
         <div>
           <div className="text-xs uppercase text-zinc-500">Now playing</div>
           <div className="font-semibold">
-            {lastCalled ? songsById[lastCalled]?.name ?? lastCalled : "—"}
+            {!lastCalled
+              ? "—"
+              : hideTitles
+                ? "🎵 Listen closely…"
+                : songsById[lastCalled]?.name ?? lastCalled}
           </div>
         </div>
         <div className="text-3xl font-mono">{countdown}s</div>
@@ -646,11 +654,18 @@ export default function HostGame({
         <h2 className="font-semibold mb-1">
           Called ({game.called.length}/{game.play_order.length})
         </h2>
-        <ol className="text-sm space-y-0.5 list-decimal list-inside">
-          {[...game.called].reverse().map((id, i) => (
-            <li key={`${id}-${i}`}>{songsById[id]?.name ?? id}</li>
-          ))}
-        </ol>
+        {hideTitles ? (
+          <p className="text-sm text-zinc-500">
+            Titles hidden on the big screen — that&apos;s the game! Full list appears
+            when the game ends.
+          </p>
+        ) : (
+          <ol className="text-sm space-y-0.5 list-decimal list-inside">
+            {[...game.called].reverse().map((id, i) => (
+              <li key={`${id}-${i}`}>{songsById[id]?.name ?? id}</li>
+            ))}
+          </ol>
+        )}
       </section>
     </main>
   );
