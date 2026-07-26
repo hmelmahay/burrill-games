@@ -10,8 +10,9 @@ import { shuffle } from "@/lib/rooms";
 import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
 import { PlayerPanel } from "@/app/vibe/PlayerPanel";
 import { playerKey } from "@/lib/rooms";
-import { addBot, removeBot, isBot, humansOf, botsOf, botSkill, botDialGuess, botPsychicSpot, botDelayMs } from "@/lib/bots";
+import { addBot, removeBot, isBot, humansOf, botsOf, botSkill, botDialGuess, botBlindDial, botPsychicSpot, botDelayMs } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
+import { useBotAnswer } from "@/lib/useBotAnswer";
 import { VIBE_SCALES } from "@/lib/content/vibes";
 import { VIBE_CLUE_BANK } from "@/lib/content/vibe-clues";
 import {
@@ -110,6 +111,18 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [psychicSub?.id, room?.phase]);
 
+  // Bots read the clue like any player would — they are never given the
+  // secret target. No reading available means they guess blind, not peek.
+  const { ready: readyToGuess, answer: clueRead } = useBotAnswer<{ position: number }>({
+    room,
+    active: room?.phase === "guess" && !!round && !!phaseData.clue,
+    tvRef,
+    ask:
+      room?.phase === "guess" && round && phaseData.clue
+        ? { kind: "vibe", clue: phaseData.clue, left: round.left, right: round.right }
+        : null,
+  });
+
   // A bot psychic files its clue after a humanlike pause, which trips the
   // existing "clue arrived → open guessing" effect below.
   const clueSentRef = useRef<string | null>(null);
@@ -141,10 +154,15 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     room,
     players,
     roundSubs,
-    active: room?.phase === "guess" && !!round,
+    active: room?.phase === "guess" && !!round && readyToGuess,
     tvRef,
     excludeId: round?.psychic_id,
-    makePayload: (bot) => ({ guess: botDialGuess(round!.target, botSkill(bot.id)) }),
+    makePayload: (bot) => ({
+      guess:
+        clueRead
+          ? botDialGuess(clueRead.position, botSkill(bot.id))
+          : botBlindDial(),
+    }),
   });
 
   async function reveal() {
@@ -320,6 +338,12 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
           <p className="text-fog text-center text-sm">
             Slide your dial to where that clue lives on the scale.
           </p>
+          {readyToGuess && !clueRead && (
+            <p className="text-lose text-center text-xs">
+              Bots are guessing blind this round — the answer service is
+              unavailable, so they can&apos;t read the clue.
+            </p>
+          )}
           <BigBtn onClick={reveal} disabled={busy || guesses.length === 0} color="ghost">
             Reveal now ({guesses.length} in)
           </BigBtn>

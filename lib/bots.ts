@@ -21,6 +21,10 @@ export {
   hotTakeFavourite,
   botHotTakeVote,
   botPsychicSpot,
+  botBlindDial,
+  botBlindChoice,
+  botBlindNumber,
+  botQuizPick,
 } from "./bot-logic";
 
 export async function addBot(room: Room, players: Player[]): Promise<string | null> {
