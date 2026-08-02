@@ -12,7 +12,11 @@ export default function TvEntry() {
   const [busy, setBusy] = useState(false);
 
   async function go(c: string) {
-    if (c.length !== 4 || busy) return;
+    if (busy) return;
+    if (c.length !== 4) {
+      setErr("Room codes are 4 characters.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     const { data } = await supabase
@@ -58,22 +62,40 @@ export default function TvEntry() {
         Enter the room code from the host&apos;s screen. This TV becomes the room&apos;s
         scoreboard — no buttons, no spoilers, works for every game.
       </p>
-      <input
-        value={code}
-        onChange={(e) => {
-          const c = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-          setCode(c);
-          if (c.length === 4) go(c);
+      {/* A real form with a submit button: TV keyboards often commit the whole
+          code at once (no per-key onChange), so auto-navigating on the 4th
+          keystroke never fires there. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          go(code);
         }}
-        placeholder="CODE"
-        maxLength={4}
-        autoFocus
-        autoCapitalize="characters"
-        autoCorrect="off"
-        autoComplete="off"
-        spellCheck={false}
-        className="rounded-xl border-2 border-glow bg-card px-4 py-5 text-center text-4xl font-mono tracking-[0.3em] uppercase placeholder:text-fog/40 w-64"
-      />
+        className="flex flex-col items-center gap-4"
+      >
+        <input
+          value={code}
+          onChange={(e) => {
+            const c = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+            setCode(c);
+            if (c.length === 4) go(c);
+          }}
+          placeholder="CODE"
+          maxLength={4}
+          autoFocus
+          autoCapitalize="characters"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          className="rounded-xl border-2 border-glow bg-card px-4 py-5 text-center text-4xl font-mono tracking-[0.3em] uppercase placeholder:text-fog/40 w-64"
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-xl bg-glow px-8 py-4 text-lg font-bold text-[#1a1000] disabled:opacity-40 transition hover:brightness-110"
+        >
+          Open scoreboard →
+        </button>
+      </form>
       {busy && <p className="text-fog">Finding the room…</p>}
       {err && <p className="text-lose text-center">{err}</p>}
       <p className="text-fog text-xs text-center max-w-xs">
