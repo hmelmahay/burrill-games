@@ -29,8 +29,10 @@ export async function GET(request: Request) {
     const room = data as Pick<Room, "game" | "code" | "status"> | null;
     if (room) {
       if (room.status === "ended") return back(reqUrl, "ended", code);
+      // Land on the no-JS legacy scoreboard; browsers that can run the React
+      // bundle upgrade themselves to the live ?tv=1 host screen from there.
       return NextResponse.redirect(
-        new URL(`/${room.game}/host/${room.code}?tv=1`, reqUrl),
+        new URL(`/tv/view/${room.code}`, reqUrl),
         303
       );
     }
