@@ -17,7 +17,12 @@
 }
 
 body {
-  background: var(--color-ink);
+  /* Literal hex, not var(--color-ink): Tailwind emits @theme variables inside
+     @layer, which older smart-TV browsers ignore — the unresolved var() left
+     the page white, and the rgba gradients below tinted it light pink under
+     the (literal, so still-white) text. */
+  background-color: #0d1026;
+  color-scheme: dark;
   background-image:
     radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124, 92, 255, 0.22), transparent),
     radial-gradient(ellipse 60% 40% at 90% 10%, rgba(255, 159, 28, 0.1), transparent);
