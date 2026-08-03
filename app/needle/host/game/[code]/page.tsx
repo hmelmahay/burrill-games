@@ -20,6 +20,7 @@ export default function HostGame({
   >({});
   const [cards, setCards] = useState<Card[]>([]);
   const [verifyId, setVerifyId] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [unplayableMsg, setUnplayableMsg] = useState<string | null>(null);
@@ -375,6 +376,34 @@ export default function HostGame({
     stopAll();
   }
 
+  // Someone yelled bingo: silence everything and freeze autoplay so the host
+  // can verify the card without the next song stomping on the moment. Resume
+  // restores autoplay (if it was on) and rolls straight into the next song.
+  const wasAutoplayRef = useRef(false);
+  const verifySectionRef = useRef<HTMLElement | null>(null);
+
+  function pauseForBingo() {
+    wasAutoplayRef.current = autoplayRef.current;
+    setAutoplay(false);
+    clearAutoplayTimer();
+    stopAll();
+    if (tickRef.current) clearInterval(tickRef.current);
+    setCountdown(0);
+    setPaused(true);
+    setTimeout(
+      () => verifySectionRef.current?.scrollIntoView({ behavior: "smooth" }),
+      50,
+    );
+  }
+
+  function resumeAfterBingo() {
+    setPaused(false);
+    if (wasAutoplayRef.current && game?.status !== "ended") {
+      setAutoplay(true);
+      scheduleAutoplay(1500);
+    }
+  }
+
   function toggleAutoplay() {
     const next = !autoplay;
     setAutoplay(next);
@@ -554,6 +583,28 @@ export default function HostGame({
         </label>
       </div>
 
+      {!paused ? (
+        <button
+          onClick={pauseForBingo}
+          disabled={game.status === "ended"}
+          className="rounded-lg bg-amber-500 text-black py-4 font-bold text-lg disabled:opacity-40"
+        >
+          ⏸ BINGO! — pause &amp; verify
+        </button>
+      ) : (
+        <div className="rounded-lg border-2 border-amber-500 bg-amber-100 dark:bg-amber-950/60 p-3 flex items-center justify-between gap-3">
+          <span className="font-bold text-amber-800 dark:text-amber-200">
+            ⏸ Paused — check the claimed card below.
+          </span>
+          <button
+            onClick={resumeAfterBingo}
+            className="rounded-md bg-green-600 text-white px-4 py-2 font-semibold shrink-0"
+          >
+            ▶ Resume
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={nextSong}
@@ -594,7 +645,7 @@ export default function HostGame({
         End game
       </button>
 
-      <section>
+      <section ref={verifySectionRef}>
         <h2 className="font-semibold mb-1">
           Verify a winner ({cards.filter((c) => c.claimed).length} cards claimed)
         </h2>

@@ -395,6 +395,51 @@ check("sharp bots trust their own answer more", sharpStuck > fuzzyStuck,
 check("even sharp bots second-guess sometimes", sharpStuck < 20000 * 0.98);
 check("a single-option question can't drift", botQuizPick(0, 1, 0.05) === 0);
 
+// --- Scatter Sprint judging (host's live dedupe + overrules) -------------
+{
+  const { judgeCellStates } = await import("./content/scatter.ts");
+  const entries = [
+    { id: "p1", answers: ["Tomato", "Toronto", "", "Xylophone"] },
+    { id: "p2", answers: ["tomato!", "Texas", "Tuna", "Tacos"] },
+    { id: "p3", answers: ["The Tomato", "Toronto", "Tuna", ""] },
+  ];
+  const none = new Map<string, "accept" | "reject">();
+
+  let s = judgeCellStates(entries, "T", 4, none);
+  check("matching answers cancel as dupes", s[0][0] === "dupe" && s[1][0] === "dupe" && s[2][0] === "dupe");
+  check("articles and punctuation don't dodge the dupe check", s[2][0] === "dupe");
+  check("unique valid answers score", s[1][1] === "ok" && s[1][3] === "ok");
+  check("blank cells are empty, not scored", s[0][2] === "empty" && s[2][3] === "empty");
+  check("wrong-letter answers are invalid", s[0][3] === "invalid");
+  check("two-way dupes flagged in later categories too", s[1][2] === "dupe" && s[2][2] === "dupe");
+
+  // Rescue one of three "Tomato"s: it scores, the other two stay cancelled.
+  s = judgeCellStates(entries, "T", 4, new Map([["p1:0", "accept"]]));
+  check("accepting a dupe rescues just that answer", s[0][0] === "ok");
+  check("its twins stay cancelled", s[1][0] === "dupe" && s[2][0] === "dupe");
+
+  // Reject one of a two-way tie: the survivor becomes unique and scores.
+  s = judgeCellStates(entries, "T", 4, new Map([["p2:2", "reject"]]));
+  check("rejecting one twin frees the other", s[1][2] === "rejected" && s[2][2] === "ok");
+
+  // Accept a wrong-letter answer: host leniency wins.
+  s = judgeCellStates(entries, "T", 4, new Map([["p1:3", "accept"]]));
+  check("accepting a wrong-letter answer scores it", s[0][3] === "ok");
+
+  // An accepted wrong-letter answer joins the dupe pool for its twins.
+  const entries2 = [
+    { id: "a", answers: ["Xray"] },
+    { id: "b", answers: ["X-Ray"] },
+  ];
+  s = judgeCellStates(entries2, "X", 1, new Map([["a:0", "accept"]]));
+  check("an accepted answer still cancels its unrescued twin", s[0][0] === "ok" && s[1][0] === "dupe");
+
+  // Overrides never leak across cells.
+  s = judgeCellStates(entries, "T", 4, new Map([["p1:0", "reject"]]));
+  check("a reject only hits its own cell", s[0][0] === "rejected" && s[1][1] === "ok");
+  check("rejecting one of three leaves the other two duped", s[1][0] === "dupe" && s[2][0] === "dupe");
+}
+
 // --- report -------------------------------------------------------------
 console.log(`\n${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log("  FAIL " + f);

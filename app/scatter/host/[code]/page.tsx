@@ -11,7 +11,7 @@ import {
   Leaderboard,
   PlayerChips,
 } from "@/app/components/ui";
-import { normalizeAnswer, startsWithLetter } from "@/lib/content/scatter";
+import { judgeCellStates, JudgeOverride } from "@/lib/content/scatter";
 import {
   POINTS_PER_ANSWER,
   ScatterPhaseData,
@@ -25,7 +25,11 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
   const { code } = use(params);
   const { room, players, subs, error, refresh } = useRoom("scatter", code);
   const [busy, setBusy] = useState(false);
-  const [rejected, setRejected] = useState<Set<string>>(new Set()); // `${playerId}:${catIdx}`
+  // Host overrules, keyed `${playerId}:${catIdx}`: "reject" tosses a scoring
+  // answer, "accept" rescues a duplicate or wrong-letter one.
+  const [overrides, setOverrides] = useState<Map<string, JudgeOverride>>(
+    new Map(),
+  );
   const scoringRef = useRef<number | null>(null);
 
   const settings = (room?.settings ?? {}) as { numRounds?: number; roundSeconds?: number };
@@ -56,7 +60,7 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
   async function startJudging() {
     if (!room) return;
     setBusy(true);
-    setRejected(new Set());
+    setOverrides(new Map());
     await refresh(); // pick up any last-second submissions
     await supabase.from("arcade_rooms").update({ phase: "judge" }).eq("id", room.id);
     setBusy(false);
@@ -75,12 +79,29 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
     });
   }, [players, roundSubs, round]);
 
-  function toggleReject(playerId: string, catIdx: number) {
-    setRejected((prev) => {
-      const next = new Set(prev);
-      const key = `${playerId}:${catIdx}`;
+  // Live cell states, shown in the judge grid AND used verbatim by scoring so
+  // the host resolves duplicates before scoring instead of discovering the
+  // cancellations one phase later. An "accept" overrule always scores (and its
+  // answer still counts against unrescued twins); a "reject" always tosses.
+  const cellStates = useMemo(() => {
+    if (!round) return [] as CellState[][];
+    return judgeCellStates(
+      grid.map(({ player, answers }) => ({ id: player.id, answers })),
+      round.letter,
+      round.categories.length,
+      overrides,
+    );
+  }, [grid, overrides, round]);
+
+  // Tap to overrule the automatic call; tap again to restore it.
+  function tapCell(playerId: string, catIdx: number, effective: CellState) {
+    if (effective === "empty") return;
+    const key = `${playerId}:${catIdx}`;
+    setOverrides((prev) => {
+      const next = new Map(prev);
       if (next.has(key)) next.delete(key);
-      else next.add(key);
+      else if (effective === "ok") next.set(key, "reject");
+      else next.set(key, "accept"); // dupe, invalid or rejected → rescue it
       return next;
     });
   }
@@ -91,32 +112,8 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
     scoringRef.current = room.round_idx;
     setBusy(true);
 
-    // Classify every cell, then cancel duplicates among the surviving answers.
-    const states: CellState[][] = grid.map(({ player, answers }) =>
-      answers.map((a, ci) => {
-        if (!a.trim()) return "empty";
-        if (!startsWithLetter(a, round.letter)) return "invalid";
-        if (rejected.has(`${player.id}:${ci}`)) return "rejected";
-        return "ok";
-      }),
-    );
-    for (let ci = 0; ci < round.categories.length; ci++) {
-      const counts = new Map<string, number>();
-      grid.forEach(({ answers }, pi) => {
-        if (states[pi][ci] === "ok") {
-          const n = normalizeAnswer(answers[ci]);
-          counts.set(n, (counts.get(n) ?? 0) + 1);
-        }
-      });
-      grid.forEach(({ answers }, pi) => {
-        if (states[pi][ci] === "ok" && (counts.get(normalizeAnswer(answers[ci])) ?? 0) > 1) {
-          states[pi][ci] = "dupe";
-        }
-      });
-    }
-
     const results: ScatterResult[] = grid.map(({ player, answers }, pi) => {
-      const cells = answers.map((a, ci) => ({ a, s: states[pi][ci] }));
+      const cells = answers.map((a, ci) => ({ a, s: cellStates[pi][ci] }));
       const gained = cells.filter((c) => c.s === "ok").length * POINTS_PER_ANSWER;
       return { player_id: player.id, name: player.name, gained, cells };
     });
@@ -208,35 +205,60 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
       {room.phase === "judge" && round && (
         <div className="flex flex-col gap-4">
           <h1 className="text-xl font-extrabold text-center">
-            Judging — tap an answer to reject it
+            Judging — tap an answer to overrule the call
           </h1>
           <p className="text-fog text-sm text-center">
-            Letter {round.letter}. Greyed answers are auto-tossed (blank or wrong letter).
-            Matching answers cancel out automatically at scoring.
+            Letter {round.letter}. Duplicates cancel out live as you judge. Tap a
+            duplicate or wrong-letter answer to accept it anyway, tap a good answer
+            to reject it — tap again to undo. What you see here is exactly what
+            scores.
           </p>
           {round.categories.map((cat, ci) => (
             <div key={ci} className="rounded-xl bg-card border border-line p-3">
               <h2 className="font-bold mb-2">{cat}</h2>
               <div className="flex flex-wrap gap-2">
-                {grid.map(({ player, answers }) => {
+                {grid.map(({ player, answers }, pi) => {
                   const a = answers[ci];
-                  const auto = !a.trim() || !startsWithLetter(a, round.letter);
-                  const isRejected = rejected.has(`${player.id}:${ci}`);
+                  const s = cellStates[pi]?.[ci] ?? "empty";
+                  const accepted = overrides.get(`${player.id}:${ci}`) === "accept";
+                  const styles: Record<CellState, string> = {
+                    empty: "opacity-30 border-line",
+                    invalid: "opacity-40 border-line line-through",
+                    dupe: "bg-glow/15 border-glow line-through",
+                    rejected: "bg-lose/30 border-lose line-through",
+                    ok: accepted
+                      ? "bg-win/20 border-win"
+                      : "border-line bg-ink",
+                  };
+                  const label: Record<CellState, string> = {
+                    empty: "",
+                    invalid: "wrong letter",
+                    dupe: "duplicate",
+                    rejected: "rejected",
+                    ok: accepted ? "✓ accepted" : `+${POINTS_PER_ANSWER}`,
+                  };
                   return (
                     <button
                       key={player.id}
-                      onClick={() => !auto && toggleReject(player.id, ci)}
-                      disabled={auto}
-                      className={`rounded-lg px-3 py-2 text-sm border text-left ${
-                        auto
-                          ? "opacity-30 border-line line-through"
-                          : isRejected
-                            ? "bg-lose/30 border-lose line-through"
-                            : "border-line bg-ink"
-                      }`}
+                      onClick={() => tapCell(player.id, ci, s)}
+                      disabled={s === "empty"}
+                      className={`rounded-lg px-3 py-2 text-sm border text-left ${styles[s]}`}
                     >
                       <span className="block text-xs text-fog">{player.name}</span>
                       {a.trim() || "—"}
+                      {label[s] && (
+                        <span
+                          className={`block text-xs ${
+                            s === "ok"
+                              ? "text-win"
+                              : s === "dupe"
+                                ? "text-glow"
+                                : "text-fog"
+                          }`}
+                        >
+                          {label[s]}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
