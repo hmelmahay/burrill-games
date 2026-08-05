@@ -155,17 +155,41 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
 
   // Auto-reveal when everyone has answered — unless answer-changing is on,
   // in which case the round runs the full clock so people can switch.
-  // (TV copies must never do this.)
+  // Time-up now reveals on its own too: a seat that never answers used to
+  // stall the round until the host clicked (issue #16). The deadline is
+  // anchored to the server-stamped phase_started_at AND the local countdown —
+  // both must agree, so a host tab opened mid-round can't cut a round short
+  // and a skewed client clock can't fire early. 2s grace lets buzzer-beater
+  // submissions land. (TV copies must never do this.)
+  const deadlinePassed =
+    left === 0 &&
+    (!room?.phase_started_at ||
+      Date.now() >= new Date(room.phase_started_at).getTime() + (answerSeconds + 2) * 1000);
   useEffect(() => {
     if (tvRef.current) return;
     if (room?.phase !== "question" || players.length === 0) return;
-    if (settings.allowChange) {
-      if (left === 0) reveal();
-    } else if (answeredCount >= players.length) {
+    if (deadlinePassed) {
+      reveal();
+    } else if (!settings.allowChange && answeredCount >= players.length) {
       reveal();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answeredCount, players.length, room?.phase, left]);
+  }, [answeredCount, players.length, room?.phase, left, deadlinePassed]);
+
+  // Background tabs get their timers throttled, so a backgrounded host can go
+  // a long time between renders and sit on an overdue reveal. Force a render
+  // the moment the tab is fronted or focused again; the effect above then
+  // fires immediately instead of waiting for the next throttled tick.
+  const [, wake] = useState(0);
+  useEffect(() => {
+    const onWake = () => wake((n) => n + 1);
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+  }, []);
 
   async function next() {
     if (!room) return;
