@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, BigBtn } from "@/app/components/ui";
-import { createRoom, shuffle, hostKey } from "@/lib/rooms";
+import { createRoom, shuffle, hostKey, joinRoom, playerKey } from "@/lib/rooms";
 import { QUIZ_BANK } from "@/lib/content/quiz";
 
 const MAX_QUESTIONS = 20;
 
 export default function QuizHostSetup() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [numQuestions, setNumQuestions] = useState(10);
   const [answerSeconds, setAnswerSeconds] = useState(20);
   const [nextSeconds, setNextSeconds] = useState(8);
@@ -35,6 +36,18 @@ export default function QuizHostSetup() {
       return;
     }
     localStorage.setItem(hostKey(room.code), "true");
+    // Creating a room shouldn't lock you out of your own game: if you gave a
+    // name, you're seated as a player and the host screen shows your controls.
+    const n = name.trim();
+    if (n) {
+      const { player, error: jErr } = await joinRoom("quiz", room.code, n);
+      if (jErr || !player) {
+        setErr(jErr ?? "Room made, but couldn't seat you as a player.");
+        setBusy(false);
+        return;
+      }
+      localStorage.setItem(playerKey(room.code), player.id);
+    }
     router.push(`/quiz/host/${room.code}`);
   }
 
@@ -42,6 +55,20 @@ export default function QuizHostSetup() {
     <Shell title="Quiz Rush" icon="⚡">
       <div className="flex flex-1 flex-col justify-center gap-6 max-w-sm mx-auto w-full">
         <h1 className="text-3xl font-extrabold text-center">Host a quiz</h1>
+        <label className="flex flex-col gap-1">
+          <span className="font-semibold">Your name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Playing too? Enter your name"
+            maxLength={20}
+            autoComplete="off"
+            className="rounded-lg border border-line bg-card px-3 py-2"
+          />
+          <span className="text-fog text-xs">
+            Leave blank to run this screen as a scoreboard only.
+          </span>
+        </label>
         <label className="flex items-center justify-between gap-3">
           <span className="font-semibold">Questions</span>
           <select
