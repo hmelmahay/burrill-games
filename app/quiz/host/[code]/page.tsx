@@ -11,11 +11,13 @@ import {
   BigBtn,
   Countdown,
   Leaderboard,
+  MiniTimer,
   PlayerChips,
 } from "@/app/components/ui";
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
+  READY_SECONDS,
   pointsForElapsed,
   eliminatedChoices,
   QuizSettings,
@@ -83,10 +85,39 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setBusy(true);
     await supabase
       .from("arcade_rooms")
-      .update({ status: "playing", phase: "question", round_idx: 0, phase_data: {} })
+      .update({ status: "playing", phase: "getready", round_idx: 0, phase_data: {} })
       .eq("id", room.id);
     setBusy(false);
   }
+
+  // "getready" is a 3-second heads-up phase before every question — each
+  // screen counts 3…2…1 so people look up before the answer clock starts.
+  // The advance runs on the same two-clock rule as reveal (local countdown
+  // AND server-stamped phase_started_at must both agree) and fires once per
+  // round. TV copies never advance it.
+  const readyLeft = useCountdown(
+    `ready-${room?.round_idx}-${room?.phase}`,
+    READY_SECONDS,
+    room?.phase === "getready",
+  );
+  const advancingRef = useRef<number | null>(null);
+  const readyDeadlinePassed =
+    readyLeft === 0 &&
+    (!room?.phase_started_at ||
+      Date.now() >= new Date(room.phase_started_at).getTime() + READY_SECONDS * 1000);
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (room?.phase !== "getready") return;
+    if (!readyDeadlinePassed) return;
+    if (advancingRef.current === room.round_idx) return;
+    advancingRef.current = room.round_idx;
+    supabase
+      .from("arcade_rooms")
+      .update({ phase: "question", phase_data: {} })
+      .eq("id", room.id)
+      .then(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.phase, room?.round_idx, readyDeadlinePassed]);
 
   async function reveal() {
     if (!room || !round || room.phase !== "question") return;
@@ -191,6 +222,33 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     };
   }, []);
 
+  // Auto-advance after the reveal: with a "time between questions" setting,
+  // the reveal runs its own little clock and then moves on by itself — the
+  // host button becomes a "right now" override. Same two-clock + fire-once
+  // + tvRef discipline as the other transitions. 0/absent = manual.
+  const nextSeconds = settings.nextSeconds ?? 0;
+  // Key includes the phase so the clock starts at the reveal, not at the
+  // round's getready — keyed by round alone it would already read 0 here.
+  const nextLeft = useCountdown(
+    `next-${room?.round_idx}-${room?.phase}`,
+    nextSeconds,
+    room?.phase === "reveal" && nextSeconds > 0,
+  );
+  const autoNextRef = useRef<number | null>(null);
+  const nextDeadlinePassed =
+    nextSeconds > 0 &&
+    nextLeft === 0 &&
+    (!room?.phase_started_at ||
+      Date.now() >= new Date(room.phase_started_at).getTime() + nextSeconds * 1000);
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (room?.phase !== "reveal" || !nextDeadlinePassed) return;
+    if (autoNextRef.current === room.round_idx) return;
+    autoNextRef.current = room.round_idx;
+    next();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.phase, room?.round_idx, nextDeadlinePassed]);
+
   async function next() {
     if (!room) return;
     setBusy(true);
@@ -200,7 +258,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
       .update(
         isLast
           ? { phase: "gameover", status: "ended" }
-          : { phase: "question", round_idx: room.round_idx + 1, phase_data: {} },
+          : { phase: "getready", round_idx: room.round_idx + 1, phase_data: {} },
       )
       .eq("id", room.id);
     setBusy(false);
@@ -249,6 +307,18 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               ? "Waiting for a human…"
               : `Start (${totalQuestions} questions)`}
           </BigBtn>
+        </div>
+      )}
+
+      {room.phase === "getready" && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
+          <p className="text-fog text-lg">
+            Question {room.round_idx + 1}/{totalQuestions}
+          </p>
+          <p className="text-2xl font-bold">Get ready…</p>
+          <div key={readyLeft} className="pop-in text-7xl font-extrabold font-mono">
+            {Math.max(1, readyLeft)}
+          </div>
         </div>
       )}
 
@@ -322,8 +392,25 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
             ))}
           </div>
           <Leaderboard players={players} gains={gains} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalQuestions ? "Finish game" : "Next question"}
+          {nextSeconds > 0 && (
+            <MiniTimer
+              left={nextLeft}
+              total={nextSeconds}
+              label={
+                room.round_idx + 1 >= totalQuestions
+                  ? "Final standings in"
+                  : "Next question in"
+              }
+            />
+          )}
+          <BigBtn onClick={next} disabled={busy} color={nextSeconds > 0 ? "ghost" : "glow"}>
+            {room.round_idx + 1 >= totalQuestions
+              ? nextSeconds > 0
+                ? "Finish now"
+                : "Finish game"
+              : nextSeconds > 0
+                ? "Next now"
+                : "Next question"}
           </BigBtn>
         </div>
       )}

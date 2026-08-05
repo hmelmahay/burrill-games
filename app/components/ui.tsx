@@ -131,6 +131,32 @@ export function Countdown({ left, total }: { left: number; total: number }) {
   );
 }
 
+// Slim between-phases countdown ("Next question in ▁▁▁ 5s") — quiet enough
+// to sit under a reveal without stealing it.
+export function MiniTimer({
+  left,
+  total,
+  label,
+}: {
+  left: number;
+  total: number;
+  label: string;
+}) {
+  const pct = total > 0 ? (left / total) * 100 : 0;
+  return (
+    <div className="flex items-center gap-2 text-fog text-sm">
+      <span className="whitespace-nowrap">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-line overflow-hidden">
+        <div
+          className="h-full rounded-full bg-violet transition-[width] duration-300"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="font-mono font-bold w-8 text-right">{left}s</span>
+    </div>
+  );
+}
+
 export function Leaderboard({
   players,
   highlightId,

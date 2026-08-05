@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabase, Room, Player, GameKind } from "@/lib/supabase";
+import { supabase, Room, Player } from "@/lib/supabase";
+import { GAME_NAMES } from "@/app/tv/games";
 
 // Legacy-TV scoreboard: a self-refreshing, server-rendered page with zero
 // dependence on client JS or modern CSS. Some TV browsers never run our React
@@ -13,18 +14,6 @@ import { supabase, Room, Player, GameKind } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 const REFRESH_SECONDS = 6;
-
-const GAME_NAMES: Record<GameKind, string> = {
-  quiz: "⚡ Quiz Rush",
-  majority: "🐑 Majority Rules",
-  scatter: "📝 Scatter Sprint",
-  emoji: "🎬 Emoji Cinema",
-  ballpark: "🎯 Ballpark",
-  twotruths: "🤥 Two Truths & a Lie",
-  hottake: "🔥 Hot Take",
-  doodle: "🎨 Doodle Dash",
-  vibe: "🌡️ Vibe Check",
-};
 
 function esc(s: string) {
   return s
