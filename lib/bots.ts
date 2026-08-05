@@ -18,8 +18,6 @@ export {
   botPredict,
   botQuizChoice,
   botQuizDelayMs,
-  hotTakeFavourite,
-  botHotTakeVote,
   botPsychicSpot,
   botBlindDial,
   botBlindChoice,

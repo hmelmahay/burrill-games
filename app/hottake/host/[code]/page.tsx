@@ -6,8 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
-import { addBot, removeBot, humansOf, botsOf, botSkill, botHotTakeVote } from "@/lib/bots";
-import { useBotSubmissions } from "@/lib/useBots";
 import {
   CROWD_POINTS,
   FAME_POINTS,
@@ -30,21 +28,6 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
   const phaseData = (room?.phase_data ?? {}) as HotTakePhaseData;
   const answered = subs.filter((s) => s.round_idx === room?.round_idx);
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "?";
-  const [botErr, setBotErr] = useState<string | null>(null);
-
-  // Bots vote for a player. They share a per-prompt favourite so a plurality
-  // actually forms — scattered votes would make "read the room" meaningless.
-  useBotSubmissions({
-    room,
-    players,
-    roundSubs: answered,
-    active: room?.phase === "vote" && !!round,
-    tvRef,
-    makePayload: (bot) => ({
-      target: botHotTakeVote(round!.p, players.map((p) => p.id), botSkill(bot.id)),
-    }),
-  });
-
 
   async function startGame() {
     if (!room) return;
@@ -145,32 +128,10 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={async () => setBotErr(room ? await addBot(room, players) : null)}
-              className="flex-1 rounded-xl border-2 border-line py-2.5 font-bold hover:border-glow"
-            >
-              🤖 Add a bot
-            </button>
-            {botsOf(players).length > 0 && (
-              <button
-                onClick={async () => setBotErr(await removeBot(players))}
-                className="rounded-xl border border-line px-4 py-2.5 text-fog hover:border-lose"
-              >
-                Remove
-              </button>
-            )}
-          </div>
-          {botErr && <p className="text-lose text-sm text-center">{botErr}</p>}
-          <BigBtn
-            onClick={startGame}
-            disabled={busy || players.length < 3 || humansOf(players).length < 1}
-          >
+          <BigBtn onClick={startGame} disabled={busy || players.length < 3}>
             {players.length < 3
-              ? "Need at least 3 players (bots count)…"
-              : humansOf(players).length < 1
-                ? "Need at least 1 human…"
-                : `Start (${totalRounds} rounds)`}
+              ? "Need at least 3 players…"
+              : `Start (${totalRounds} rounds)`}
           </BigBtn>
         </div>
       )}

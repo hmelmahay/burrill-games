@@ -58,7 +58,6 @@ const GAMES: {
     icon: "🔥",
     name: "Hot Take",
     desc: "Who's most likely to sleep through three alarms? Vote for a player, score by reading the room.",
-    bots: { minHumans: 1 },
   },
   {
     slug: "doodle",
