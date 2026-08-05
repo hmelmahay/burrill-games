@@ -11,6 +11,7 @@ import {
   BigBtn,
   Countdown,
   Leaderboard,
+  MiniTimer,
   PlayerChips,
 } from "@/app/components/ui";
 import {
@@ -95,7 +96,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
   // AND server-stamped phase_started_at must both agree) and fires once per
   // round. TV copies never advance it.
   const readyLeft = useCountdown(
-    `ready-${room?.round_idx}`,
+    `ready-${room?.round_idx}-${room?.phase}`,
     READY_SECONDS,
     room?.phase === "getready",
   );
@@ -220,6 +221,33 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
       window.removeEventListener("focus", onWake);
     };
   }, []);
+
+  // Auto-advance after the reveal: with a "time between questions" setting,
+  // the reveal runs its own little clock and then moves on by itself — the
+  // host button becomes a "right now" override. Same two-clock + fire-once
+  // + tvRef discipline as the other transitions. 0/absent = manual.
+  const nextSeconds = settings.nextSeconds ?? 0;
+  // Key includes the phase so the clock starts at the reveal, not at the
+  // round's getready — keyed by round alone it would already read 0 here.
+  const nextLeft = useCountdown(
+    `next-${room?.round_idx}-${room?.phase}`,
+    nextSeconds,
+    room?.phase === "reveal" && nextSeconds > 0,
+  );
+  const autoNextRef = useRef<number | null>(null);
+  const nextDeadlinePassed =
+    nextSeconds > 0 &&
+    nextLeft === 0 &&
+    (!room?.phase_started_at ||
+      Date.now() >= new Date(room.phase_started_at).getTime() + nextSeconds * 1000);
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (room?.phase !== "reveal" || !nextDeadlinePassed) return;
+    if (autoNextRef.current === room.round_idx) return;
+    autoNextRef.current = room.round_idx;
+    next();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.phase, room?.round_idx, nextDeadlinePassed]);
 
   async function next() {
     if (!room) return;
@@ -364,8 +392,25 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
             ))}
           </div>
           <Leaderboard players={players} gains={gains} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalQuestions ? "Finish game" : "Next question"}
+          {nextSeconds > 0 && (
+            <MiniTimer
+              left={nextLeft}
+              total={nextSeconds}
+              label={
+                room.round_idx + 1 >= totalQuestions
+                  ? "Final standings in"
+                  : "Next question in"
+              }
+            />
+          )}
+          <BigBtn onClick={next} disabled={busy} color={nextSeconds > 0 ? "ghost" : "glow"}>
+            {room.round_idx + 1 >= totalQuestions
+              ? nextSeconds > 0
+                ? "Finish now"
+                : "Finish game"
+              : nextSeconds > 0
+                ? "Next now"
+                : "Next question"}
           </BigBtn>
         </div>
       )}

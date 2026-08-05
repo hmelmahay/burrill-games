@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { supabase, QuizRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
-import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
+import { Shell, Leaderboard, Countdown, MiniTimer } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import {
   CHOICE_COLORS,
@@ -42,10 +42,20 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
     room?.phase === "question",
   );
   const readyLeft = useCountdown(
-    `ready-${room?.round_idx}`,
+    `ready-${room?.round_idx}-${room?.phase}`,
     READY_SECONDS,
     room?.phase === "getready",
   );
+  const nextSeconds = settings.nextSeconds ?? 0;
+  // Phase in the key so the clock starts when the reveal appears (see host).
+  const nextLeft = useCountdown(
+    `next-${room?.round_idx}-${room?.phase}`,
+    nextSeconds,
+    room?.phase === "reveal" && nextSeconds > 0,
+  );
+  const isLast = room
+    ? room.round_idx + 1 >= Math.min(settings.numQuestions ?? 10, room.rounds.length)
+    : false;
 
   // Reset local pick each new round.
   useEffect(() => {
@@ -201,7 +211,15 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
             </div>
           )}
           <Leaderboard players={players} highlightId={playerId} />
-          <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          {nextSeconds > 0 ? (
+            <MiniTimer
+              left={nextLeft}
+              total={nextSeconds}
+              label={isLast ? "Final standings in" : "Next question in"}
+            />
+          ) : (
+            <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          )}
         </div>
       )}
 

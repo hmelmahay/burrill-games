@@ -12,6 +12,7 @@ export default function QuizHostSetup() {
   const router = useRouter();
   const [numQuestions, setNumQuestions] = useState(10);
   const [answerSeconds, setAnswerSeconds] = useState(20);
+  const [nextSeconds, setNextSeconds] = useState(8);
   const [hints, setHints] = useState(false);
   const [allowChange, setAllowChange] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -24,6 +25,7 @@ export default function QuizHostSetup() {
     const { room, error } = await createRoom("quiz", rounds, {
       numQuestions,
       answerSeconds,
+      nextSeconds,
       hints,
       allowChange,
     });
@@ -64,6 +66,28 @@ export default function QuizHostSetup() {
             <option value={15}>15</option>
             <option value={20}>20</option>
             <option value={30}>30</option>
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span className="font-semibold">
+            Time between questions
+            <span className="block text-xs text-fog font-normal">
+              The reveal auto-advances after this long
+            </span>
+          </span>
+          <select
+            value={nextSeconds}
+            onChange={(e) => setNextSeconds(Number(e.target.value))}
+            className="rounded-lg border border-line bg-card px-3 py-2"
+          >
+            <option value={0}>Manual</option>
+            <option value={3}>3s</option>
+            <option value={5}>5s</option>
+            <option value={8}>8s</option>
+            <option value={10}>10s</option>
+            <option value={15}>15s</option>
+            <option value={20}>20s</option>
+            <option value={25}>25s</option>
           </select>
         </label>
         <label className="flex items-center justify-between gap-3">

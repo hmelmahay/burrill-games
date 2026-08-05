@@ -39,10 +39,15 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
     subs.filter((s) => s.round_idx === room?.round_idx).map((s) => s.player_id),
   );
 
-  // Re-render 4×/second while a clock is running (get-ready countdown or the
-  // question itself); `left` is derived from the server timestamp each render.
+  // Re-render 4×/second while a clock is running (get-ready countdown, the
+  // question, or a timed reveal); `left` is derived from the server timestamp
+  // each render.
+  const nextSeconds = settings.nextSeconds ?? 0;
   const questionLive = room?.phase === "question";
-  const clockLive = questionLive || room?.phase === "getready";
+  const clockLive =
+    questionLive ||
+    room?.phase === "getready" ||
+    (room?.phase === "reveal" && nextSeconds > 0);
   const [, tick] = useState(0);
   useEffect(() => {
     if (!clockLive) return;
@@ -65,6 +70,13 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
           Math.min(READY_SECONDS, READY_SECONDS - Math.floor((Date.now() - startMs) / 1000)),
         )
       : READY_SECONDS;
+  const nextLeft =
+    room?.phase === "reveal" && nextSeconds > 0 && startMs != null
+      ? Math.max(
+          0,
+          Math.min(nextSeconds, nextSeconds - Math.floor((Date.now() - startMs) / 1000)),
+        )
+      : nextSeconds;
   const overtime =
     questionLive &&
     startMs != null &&
@@ -164,6 +176,25 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
           <FastestCallout phaseData={phaseData} />
 
           <StageLeaderboard players={players} phaseData={phaseData} />
+
+          {nextSeconds > 0 && (
+            <div className="flex items-center gap-4 text-fog text-xl mt-auto">
+              <span className="whitespace-nowrap">
+                {room.round_idx + 1 >= totalQuestions
+                  ? "Final standings in"
+                  : "Next question in"}
+              </span>
+              <div className="flex-1 h-2.5 rounded-full bg-line overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-violet transition-[width] duration-300"
+                  style={{ width: `${(nextLeft / nextSeconds) * 100}%` }}
+                />
+              </div>
+              <span className="font-mono text-2xl font-bold w-14 text-right">
+                {nextLeft}s
+              </span>
+            </div>
+          )}
         </div>
       )}
 

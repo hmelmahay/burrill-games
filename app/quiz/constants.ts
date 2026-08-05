@@ -27,6 +27,9 @@ export type QuizSettings = {
   answerSeconds?: number;
   hints?: boolean;
   allowChange?: boolean;
+  // Seconds the reveal stays up before the host auto-advances (3–25).
+  // 0 / absent = manual: the host taps "Next question" like before.
+  nextSeconds?: number;
 };
 
 // Time-based scoring, exact to the point: an instant correct answer is worth
