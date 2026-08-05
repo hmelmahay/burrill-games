@@ -25,6 +25,11 @@ const ERRORS: Record<string, string> = {
 const LIVE_WINDOW_HOURS = 3;
 const MAX_LIVE_ROOMS = 6;
 
+// A TV parked on this page should see new rooms appear by itself. Meta
+// refresh is the one mechanism the no-JS TVs also honor (same as the legacy
+// board's re-pull); CodeInput keeps a half-typed code across the reload.
+const REFRESH_SECONDS = 15;
+
 async function liveRooms(): Promise<Room[]> {
   try {
     const since = new Date(Date.now() - LIVE_WINDOW_HOURS * 3600_000).toISOString();
@@ -59,6 +64,8 @@ export default async function TvEntry({
   const rooms = await liveRooms();
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
+      {/* React hoists this into <head>; browsers honor it in <body> anyway. */}
+      <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />
       <div className="text-5xl">📺</div>
       <h1 className="text-3xl font-extrabold text-center">Big-screen scoreboard</h1>
 
@@ -103,7 +110,8 @@ export default async function TvEntry({
       </form>
       {errMsg && <p className="text-lose text-center">{errMsg}</p>}
       <p className="text-fog text-xs text-center max-w-xs">
-        Tip: bookmark this page on your TV — the address never changes.
+        Tip: bookmark this page on your TV — the address never changes, and new
+        games show up on their own.
       </p>
     </main>
   );
