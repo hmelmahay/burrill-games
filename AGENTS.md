@@ -41,7 +41,8 @@ Concretely:
 - Give the bot only what the player sees (the clue, the question, the choices) and let it work the answer out.
 - Simulate skill as noise on **the bot's own attempt**, never on the truth. `botQuizPick` makes a fuzzy bot second-guess its own pick; the dial and numeric guesses centre on the bot's own estimate.
 - When the answer service is unavailable, bots guess **blind** — `botBlindDial`, `botBlindChoice`, `botBlindNumber` take no answer argument at all, so peeking isn't reachable from that path. Say so on screen; each game already does.
-- Hot Take and Majority Rules never needed the service — there's no ground truth to peek at, so their bots read the prompt like everyone else. Majority Rules derives a per-prompt crowd leaning so a plurality actually forms; independent coin flips would make predicting the room pure luck.
+- Majority Rules never needed the service — there's no ground truth to peek at, so its bots read the prompt like everyone else. It derives a per-prompt crowd leaning so a plurality actually forms; independent coin flips would make predicting the room pure luck.
+- Hot Take has **no bots by design**: "who's most likely to…" is about the actual people in the room, and a bot voting for (or receiving votes as) a house name is meaningless. Don't add them back.
 
 ### `POST /api/bots/answer`
 
