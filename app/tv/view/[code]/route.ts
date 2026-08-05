@@ -79,14 +79,21 @@ export async function GET(
     .join("");
 
   const gameName = GAME_NAMES[room.game] ?? room.game;
-  // Upgrade to the live React scoreboard only if this browser can parse and
-  // run modern JS — the eval is a syntax probe, not a capability shim. TVs
-  // that fail it (or have JS off) simply stay on this self-refreshing page.
+  // Modern browsers upgrade to the richest live view we have for this game:
+  // a purpose-built stage screen where one exists, otherwise the host screen
+  // in read-only ?tv=1 mode.
+  const liveView =
+    room.game === "quiz"
+      ? `/quiz/stage/${room.code}`
+      : `/${room.game}/host/${room.code}?tv=1`;
+  // Upgrade only if this browser can parse and run modern JS — the eval is a
+  // syntax probe, not a capability shim. TVs that fail it (or have JS off)
+  // simply stay on this self-refreshing page.
   const upgrade = `<script>
 try {
   eval("async () => { const probe = (x) => x?.y ?? 0; };");
   if (window.fetch && window.Promise && window.WebSocket && window.CSS && CSS.supports("display","flex")) {
-    location.replace(${JSON.stringify(`/${room.game}/host/${room.code}?tv=1`)});
+    location.replace(${JSON.stringify(liveView)});
   }
 } catch (e) {}
 </script>`;
