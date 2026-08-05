@@ -17,13 +17,13 @@ import {
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
-  READY_SECONDS,
   pointsForElapsed,
   eliminatedChoices,
   QuizSettings,
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
+import { playerKey } from "@/lib/rooms";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizPick, botBlindChoice, botQuizDelayMs } from "@/lib/bots";
 import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
@@ -31,7 +31,7 @@ import { useBotSubmissions } from "@/lib/useBots";
 export default function QuizHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("quiz", code);
-  const { tvRef } = useSpectator();
+  const { tv, tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -85,39 +85,57 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setBusy(true);
     await supabase
       .from("arcade_rooms")
-      .update({ status: "playing", phase: "getready", round_idx: 0, phase_data: {} })
+      .update({ status: "playing", phase: "question", round_idx: 0, phase_data: {} })
       .eq("id", room.id);
     setBusy(false);
   }
 
-  // "getready" is a 3-second heads-up phase before every question — each
-  // screen counts 3…2…1 so people look up before the answer clock starts.
-  // The advance runs on the same two-clock rule as reveal (local countdown
-  // AND server-stamped phase_started_at must both agree) and fires once per
-  // round. TV copies never advance it.
-  const readyLeft = useCountdown(
-    `ready-${room?.round_idx}-${room?.phase}`,
-    READY_SECONDS,
-    room?.phase === "getready",
-  );
-  const advancingRef = useRef<number | null>(null);
-  const readyDeadlinePassed =
-    readyLeft === 0 &&
-    (!room?.phase_started_at ||
-      Date.now() >= new Date(room.phase_started_at).getTime() + READY_SECONDS * 1000);
+  // The creator can play too (seated from the setup page, like Vibe Check):
+  // when this device holds a player for the room, the choice tiles become
+  // tappable answer buttons. Never on a TV copy.
+  const [playerId, setPlayerId] = useState<string | null>(null);
   useEffect(() => {
-    if (tvRef.current) return;
-    if (room?.phase !== "getready") return;
-    if (!readyDeadlinePassed) return;
-    if (advancingRef.current === room.round_idx) return;
-    advancingRef.current = room.round_idx;
-    supabase
-      .from("arcade_rooms")
-      .update({ phase: "question", phase_data: {} })
-      .eq("id", room.id)
-      .then(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.phase, room?.round_idx, readyDeadlinePassed]);
+    setPlayerId(localStorage.getItem(playerKey(code)));
+  }, [code]);
+  const me = players.find((p) => p.id === playerId);
+  const canPlay = !!me && !tv;
+  const mySub = subs.find(
+    (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
+  );
+  const [picked, setPicked] = useState<number | null>(null);
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => {
+    setPicked(null);
+  }, [room?.round_idx]);
+  const chosen = picked ?? (mySub?.payload.choice as number | undefined) ?? null;
+
+  async function answerAs(choice: number) {
+    if (!room || !playerId || mySub || picked != null || left === 0) return;
+    setPicked(choice);
+    const { error: e } = await supabase.from("arcade_subs").insert({
+      room_id: room.id,
+      player_id: playerId,
+      round_idx: room.round_idx,
+      payload: { choice },
+    });
+    if (e && e.code !== "23505") setPicked(null); // let them retry on real failures
+  }
+
+  // Same delete + reinsert as the phone view: the speed score re-times from
+  // the final pick.
+  async function switchAs(i: number) {
+    if (!room || !playerId || !mySub || switching || i === chosen || left === 0) return;
+    setSwitching(true);
+    await supabase.from("arcade_subs").delete().eq("id", mySub.id);
+    const { error: e } = await supabase.from("arcade_subs").insert({
+      room_id: room.id,
+      player_id: playerId,
+      round_idx: room.round_idx,
+      payload: { choice: i },
+    });
+    if (!e) setPicked(i);
+    setSwitching(false);
+  }
 
   async function reveal() {
     if (!room || !round || room.phase !== "question") return;
@@ -227,8 +245,8 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
   // host button becomes a "right now" override. Same two-clock + fire-once
   // + tvRef discipline as the other transitions. 0/absent = manual.
   const nextSeconds = settings.nextSeconds ?? 0;
-  // Key includes the phase so the clock starts at the reveal, not at the
-  // round's getready — keyed by round alone it would already read 0 here.
+  // Key includes the phase so the clock starts when the reveal appears, not
+  // when the round does.
   const nextLeft = useCountdown(
     `next-${room?.round_idx}-${room?.phase}`,
     nextSeconds,
@@ -258,7 +276,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
       .update(
         isLast
           ? { phase: "gameover", status: "ended" }
-          : { phase: "getready", round_idx: room.round_idx + 1, phase_data: {} },
+          : { phase: "question", round_idx: room.round_idx + 1, phase_data: {} },
       )
       .eq("id", room.id);
     setBusy(false);
@@ -310,18 +328,6 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
         </div>
       )}
 
-      {room.phase === "getready" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
-          <p className="text-fog text-lg">
-            Question {room.round_idx + 1}/{totalQuestions}
-          </p>
-          <p className="text-2xl font-bold">Get ready…</p>
-          <div key={readyLeft} className="pop-in text-7xl font-extrabold font-mono">
-            {Math.max(1, readyLeft)}
-          </div>
-        </div>
-      )}
-
       {room.phase === "question" && round && (
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between text-sm text-fog">
@@ -339,19 +345,55 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               const dead = settings.hints
                 ? eliminatedChoices(room.round_idx, round.answer, left, answerSeconds).includes(i)
                 : false;
+              const tile = `rounded-xl p-4 font-bold text-white text-center ${
+                dead ? "opacity-30 line-through" : ""
+              }`;
+              if (!canPlay)
+                return (
+                  <div key={i} className={tile} style={{ background: CHOICE_COLORS[i] }}>
+                    {CHOICE_LETTERS[i]} · {c}
+                  </div>
+                );
+              const selected = chosen === i;
               return (
-                <div
+                <button
                   key={i}
-                  className={`rounded-xl p-4 font-bold text-white text-center ${
-                    dead ? "opacity-30 line-through" : ""
+                  // Blur so the focus outline can't linger into the next
+                  // question and read as a selection.
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    if (chosen == null) answerAs(i);
+                    else switchAs(i);
+                  }}
+                  disabled={
+                    dead ||
+                    switching ||
+                    left === 0 ||
+                    (chosen != null && !settings.allowChange)
+                  }
+                  className={`${tile} active:scale-[0.98] transition ${
+                    selected
+                      ? "ring-4 ring-white"
+                      : chosen != null
+                        ? "opacity-60"
+                        : ""
                   }`}
                   style={{ background: CHOICE_COLORS[i] }}
                 >
                   {CHOICE_LETTERS[i]} · {c}
-                </div>
+                </button>
               );
             })}
           </div>
+          {canPlay && left > 0 && (
+            <p className="text-fog text-xs text-center">
+              {chosen == null
+                ? `Playing as ${me!.name} — tap your answer.`
+                : settings.allowChange
+                  ? "Tap another answer to change — points re-time from your last pick."
+                  : `Locked in as ${me!.name}. Waiting for everyone…`}
+            </p>
+          )}
           {botsReady && !botAnswer && botsOf(players).length > 0 && (
             <p className="text-lose text-center text-xs">
               Bots are answering at random — the answer service is unavailable.
@@ -391,7 +433,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               </div>
             ))}
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={playerId} />
           {nextSeconds > 0 && (
             <MiniTimer
               left={nextLeft}
@@ -419,7 +461,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={playerId} />
           </div>
           <Link href="/quiz/host" className="underline text-fog">
             Play again with a new room
