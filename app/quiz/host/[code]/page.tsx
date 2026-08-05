@@ -137,6 +137,18 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setSwitching(false);
   }
 
+  // "getready" no longer exists; a room caught on it mid-deploy would strand
+  // with no rule to leave it. Nudge it straight into the question.
+  useEffect(() => {
+    if (tvRef.current || room?.phase !== "getready") return;
+    supabase
+      .from("arcade_rooms")
+      .update({ phase: "question", phase_data: {} })
+      .eq("id", room.id)
+      .then(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.phase, room?.id]);
+
   async function reveal() {
     if (!room || !round || room.phase !== "question") return;
     if (revealingRef.current === room.round_idx) return; // fire once per round
