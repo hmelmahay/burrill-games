@@ -16,6 +16,7 @@ import {
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
+  READY_SECONDS,
   pointsForElapsed,
   eliminatedChoices,
   QuizSettings,
@@ -83,10 +84,39 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setBusy(true);
     await supabase
       .from("arcade_rooms")
-      .update({ status: "playing", phase: "question", round_idx: 0, phase_data: {} })
+      .update({ status: "playing", phase: "getready", round_idx: 0, phase_data: {} })
       .eq("id", room.id);
     setBusy(false);
   }
+
+  // "getready" is a 3-second heads-up phase before every question — each
+  // screen counts 3…2…1 so people look up before the answer clock starts.
+  // The advance runs on the same two-clock rule as reveal (local countdown
+  // AND server-stamped phase_started_at must both agree) and fires once per
+  // round. TV copies never advance it.
+  const readyLeft = useCountdown(
+    `ready-${room?.round_idx}`,
+    READY_SECONDS,
+    room?.phase === "getready",
+  );
+  const advancingRef = useRef<number | null>(null);
+  const readyDeadlinePassed =
+    readyLeft === 0 &&
+    (!room?.phase_started_at ||
+      Date.now() >= new Date(room.phase_started_at).getTime() + READY_SECONDS * 1000);
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (room?.phase !== "getready") return;
+    if (!readyDeadlinePassed) return;
+    if (advancingRef.current === room.round_idx) return;
+    advancingRef.current = room.round_idx;
+    supabase
+      .from("arcade_rooms")
+      .update({ phase: "question", phase_data: {} })
+      .eq("id", room.id)
+      .then(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.phase, room?.round_idx, readyDeadlinePassed]);
 
   async function reveal() {
     if (!room || !round || room.phase !== "question") return;
@@ -200,7 +230,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
       .update(
         isLast
           ? { phase: "gameover", status: "ended" }
-          : { phase: "question", round_idx: room.round_idx + 1, phase_data: {} },
+          : { phase: "getready", round_idx: room.round_idx + 1, phase_data: {} },
       )
       .eq("id", room.id);
     setBusy(false);
@@ -249,6 +279,18 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               ? "Waiting for a human…"
               : `Start (${totalQuestions} questions)`}
           </BigBtn>
+        </div>
+      )}
+
+      {room.phase === "getready" && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
+          <p className="text-fog text-lg">
+            Question {room.round_idx + 1}/{totalQuestions}
+          </p>
+          <p className="text-2xl font-bold">Get ready…</p>
+          <div key={readyLeft} className="pop-in text-7xl font-extrabold font-mono">
+            {Math.max(1, readyLeft)}
+          </div>
         </div>
       )}
 

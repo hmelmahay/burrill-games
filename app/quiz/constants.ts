@@ -1,6 +1,11 @@
 export const CHOICE_COLORS = ["#e21b3c", "#1368ce", "#d89e00", "#26890c"];
 export const CHOICE_LETTERS = ["A", "B", "C", "D"];
 
+// Heads-up countdown before each question: every screen shows 3…2…1 so nobody
+// gets ambushed mid-sip. The answer clock only starts once the question phase
+// begins, so the full answerSeconds are preserved.
+export const READY_SECONDS = 3;
+
 // Hints mode: which wrong choices are struck out as time winds down — one at
 // half time, a second at quarter time. Pure function of (round, time) so every
 // phone, host, and TV agrees without any coordination.

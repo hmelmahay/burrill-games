@@ -6,6 +6,7 @@ import { useRoom } from "@/lib/useRoom";
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
+  READY_SECONDS,
   eliminatedChoices,
   QuizSettings,
   QuizPhaseData,
@@ -38,15 +39,16 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
     subs.filter((s) => s.round_idx === room?.round_idx).map((s) => s.player_id),
   );
 
-  // Re-render 4×/second while a question runs so the clock and hint
-  // strike-outs stay live; `left` itself is derived from the server timestamp.
+  // Re-render 4×/second while a clock is running (get-ready countdown or the
+  // question itself); `left` is derived from the server timestamp each render.
   const questionLive = room?.phase === "question";
+  const clockLive = questionLive || room?.phase === "getready";
   const [, tick] = useState(0);
   useEffect(() => {
-    if (!questionLive) return;
+    if (!clockLive) return;
     const t = setInterval(() => tick((n) => n + 1), 250);
     return () => clearInterval(t);
-  }, [questionLive]);
+  }, [clockLive]);
 
   const startMs = room?.phase_started_at ? new Date(room.phase_started_at).getTime() : null;
   const left =
@@ -56,6 +58,13 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
           Math.min(answerSeconds, answerSeconds - Math.floor((Date.now() - startMs) / 1000)),
         )
       : answerSeconds;
+  const readyLeft =
+    room?.phase === "getready" && startMs != null
+      ? Math.max(
+          0,
+          Math.min(READY_SECONDS, READY_SECONDS - Math.floor((Date.now() - startMs) / 1000)),
+        )
+      : READY_SECONDS;
   const overtime =
     questionLive &&
     startMs != null &&
@@ -80,6 +89,19 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
     // The lobby already shows the code huge — no need to repeat it up top.
     <Stage code={room.phase === "lobby" ? undefined : room.code}>
       {room.phase === "lobby" && <StageLobby code={room.code} players={players} totalQuestions={totalQuestions} />}
+
+      {room.phase === "getready" && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-6">
+          <p className="text-fog text-3xl">
+            Question {room.round_idx + 1}
+            <span className="text-fog/60">/{totalQuestions}</span>
+          </p>
+          <p className="text-5xl font-extrabold">Get ready…</p>
+          <div key={readyLeft} className="pop-in text-[10rem] leading-none font-extrabold font-mono text-glow">
+            {Math.max(1, readyLeft)}
+          </div>
+        </div>
+      )}
 
       {room.phase === "question" && round && (
         <div className="flex flex-1 flex-col gap-6">
