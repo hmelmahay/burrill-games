@@ -9,7 +9,6 @@ import { playerKey } from "@/lib/rooms";
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
-  READY_SECONDS,
   eliminatedChoices,
   QuizSettings,
   QuizPhaseData,
@@ -40,11 +39,6 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
     `${room?.round_idx}-${room?.phase}`,
     answerSeconds,
     room?.phase === "question",
-  );
-  const readyLeft = useCountdown(
-    `ready-${room?.round_idx}-${room?.phase}`,
-    READY_SECONDS,
-    room?.phase === "getready",
   );
   const nextSeconds = settings.nextSeconds ?? 0;
   // Phase in the key so the clock starts when the reveal appears (see host).
@@ -121,15 +115,6 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
           <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
           <p className="text-fog">Waiting for the host to start…</p>
           <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
-
-      {room.phase === "getready" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-fog text-xl">Get ready…</p>
-          <div key={readyLeft} className="pop-in text-8xl font-extrabold font-mono">
-            {Math.max(1, readyLeft)}
-          </div>
         </div>
       )}
 
