@@ -16,7 +16,8 @@ export type GameKind =
   | "twotruths"
   | "hottake"
   | "doodle"
-  | "vibe";
+  | "vibe"
+  | "chameleon";
 
 export type Room = {
   id: string;
