@@ -72,6 +72,12 @@ const GAMES: {
     desc: "The psychic hides a spot on a scale — Hot ↔ Cold — and gives one clue. Slide your dial to where it lands.",
     bots: { minHumans: 1 },
   },
+  {
+    slug: "chameleon",
+    icon: "🦎",
+    name: "Chameleon",
+    desc: "Everyone sees the secret word except one faker. Say a one-word clue out loud, then vote out the Chameleon.",
+  },
 ];
 
 export default function Home() {

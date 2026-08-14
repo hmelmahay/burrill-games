@@ -1,6 +1,6 @@
 # The Burr & Spill — Games
 
-Ten party games in one Next.js + Supabase app. Phones are the controllers,
+Twelve party games in one Next.js + Supabase app. Phones are the controllers,
 any screen with the host URL is the board, and `/tv` turns a smart TV into a
 read-only scoreboard with just the room code.
 

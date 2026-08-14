@@ -2,7 +2,7 @@
 
 > `CLAUDE.md` is a symlink to this file — they are the same document. Edit this one; don't replace the symlink with a copy.
 
-Eleven party games in one Next.js + Supabase app, deployed at **burrill-games.vercel.app**. A collaboration between Steve (hmelmahay) and Mike (SpyderMYK) — both have push access. Prefer branch → PR → merge; the arcade grew out of the same GitHub-learning habit as [party-bluff](https://github.com/hmelmahay/party-bluff).
+Twelve party games in one Next.js + Supabase app, deployed at **burrill-games.vercel.app**. A collaboration between Steve (hmelmahay) and Mike (SpyderMYK) — both have push access. Prefer branch → PR → merge; the arcade grew out of the same GitHub-learning habit as [party-bluff](https://github.com/hmelmahay/party-bluff).
 
 ## Shape of the app
 
