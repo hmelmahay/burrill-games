@@ -180,6 +180,25 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chamGuessSub?.id, room?.phase]);
 
+  // Host escape hatch for a stalled guess phase (dead phone, walked off):
+  // scores exactly like a wrong guess. Shares the advancing key with the
+  // guess effect so whichever fires first wins and the other is a no-op.
+  async function giveUp() {
+    if (!room || !round || room.phase !== "guess") return;
+    const key = `guess-${room.round_idx}`;
+    if (advancingRef.current === key) return;
+    advancingRef.current = key;
+    setBusy(true);
+    const results: ChamResult[] = players.map((p) => ({
+      player_id: p.id,
+      name: p.name,
+      gained: p.id === round.chameleon_id ? 0 : CATCHERS_POINTS,
+      wasChameleon: p.id === round.chameleon_id,
+    }));
+    await scoreAndReveal(results, { ...phaseData, guess_idx: null });
+    setBusy(false);
+  }
+
   async function next() {
     if (!room) return;
     setBusy(true);
@@ -288,6 +307,9 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
             Guess right and they still score.
           </p>
           <WordGrid words={round.words} />
+          <BigBtn onClick={giveUp} disabled={busy} color="ghost">
+            They give up → reveal
+          </BigBtn>
         </div>
       )}
 
@@ -312,9 +334,11 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
                 ? phaseData.accused_id
                   ? `The room accused ${accused?.name ?? "someone else"} — the Chameleon escapes! +${ESCAPE_POINTS}`
                   : `The vote tied — the Chameleon escapes! +${ESCAPE_POINTS}`
-                : phaseData.guess_idx === round.secret_idx
-                  ? `Caught — but guessed “${round.words[round.secret_idx]}” right! +${CAUGHT_BUT_GUESSED_POINTS}`
-                  : `Caught, and guessed “${round.words[phaseData.guess_idx ?? 0] ?? "…"}” — wrong! Everyone else +${CATCHERS_POINTS}`}
+                : phaseData.guess_idx == null
+                  ? `Caught — and gave up without a guess! Everyone else +${CATCHERS_POINTS}`
+                  : phaseData.guess_idx === round.secret_idx
+                    ? `Caught — but guessed “${round.words[round.secret_idx]}” right! +${CAUGHT_BUT_GUESSED_POINTS}`
+                    : `Caught, and guessed “${round.words[phaseData.guess_idx]}” — wrong! Everyone else +${CATCHERS_POINTS}`}
             </p>
           </div>
           <WordGrid
