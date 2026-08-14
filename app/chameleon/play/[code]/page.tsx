@@ -94,9 +94,11 @@ export default function ChameleonPlay({ params }: { params: Promise<{ code: stri
             <p className="text-fog text-sm mt-1">
               {!phaseData.caught
                 ? `They escaped the vote! +${ESCAPE_POINTS} for the Chameleon.`
-                : phaseData.guess_idx === round.secret_idx
-                  ? `Caught, but guessed the word! +${CAUGHT_BUT_GUESSED_POINTS} for the Chameleon.`
-                  : `Caught and guessed wrong — everyone else +${CATCHERS_POINTS}.`}
+                : phaseData.guess_idx == null
+                  ? `Caught, and gave up on the guess — everyone else +${CATCHERS_POINTS}.`
+                  : phaseData.guess_idx === round.secret_idx
+                    ? `Caught, but guessed the word! +${CAUGHT_BUT_GUESSED_POINTS} for the Chameleon.`
+                    : `Caught and guessed wrong — everyone else +${CATCHERS_POINTS}.`}
             </p>
           </div>
           <WordGrid
