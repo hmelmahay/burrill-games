@@ -73,6 +73,12 @@ const GAMES: {
     bots: { minHumans: 1 },
   },
   {
+    slug: "chain",
+    icon: "⛓️",
+    name: "Chain Gang",
+    desc: "FIRE → WORK → SHOP: every word pairs with the next. Race the room down a 10-word chain, or duel head-to-head — miss and your rival gets a letter.",
+  },
+  {
     slug: "chameleon",
     icon: "🦎",
     name: "Chameleon",
