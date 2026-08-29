@@ -136,7 +136,11 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
               Chain {room.round_idx + 1}/{totalChains}
             </span>
           </div>
-          <Countdown left={left} total={raceSeconds} />
+          {/* Sticky with the same backdrop as the guess box: the clock stays
+              on screen while the chain scrolls between them. */}
+          <div className="sticky top-0 z-10 -mx-1 rounded-b-xl bg-ink/95 px-1 pb-1.5 pt-1 backdrop-blur">
+            <Countdown left={left} total={raceSeconds} />
+          </div>
           <RacePanel room={room} round={round} playerId={playerId!} subs={subs} left={left} />
         </div>
       )}
@@ -151,7 +155,9 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
               {duel.turn === me.id ? "your turn!" : `${activePlayer?.name ?? "…"}'s turn`}
             </span>
           </div>
-          <Countdown left={duelLeft} total={duelSeconds} />
+          <div className="sticky top-0 z-10 -mx-1 rounded-b-xl bg-ink/95 px-1 pb-1.5 pt-1 backdrop-blur">
+            <Countdown left={duelLeft} total={duelSeconds} />
+          </div>
           {lastBanner}
           <p className="text-center text-sm font-bold">
             Your chain — {mySide.solved}/{HIDDEN_WORDS}
