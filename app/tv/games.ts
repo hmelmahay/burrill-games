@@ -12,4 +12,5 @@ export const GAME_NAMES: Record<GameKind, string> = {
   doodle: "🎨 Doodle Dash",
   vibe: "🌡️ Vibe Check",
   chameleon: "🦎 Chameleon",
+  chain: "⛓️ Chain Gang",
 };
