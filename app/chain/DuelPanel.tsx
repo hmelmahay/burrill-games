@@ -6,24 +6,27 @@ import {
   chainGuessOk,
   wordValue,
   DuelState,
+  FRESH_SIDE,
   HIDDEN_WORDS,
+  WIN_BONUS,
 } from "./constants";
 
-// The active player's guess box in a duel. Unlike most games the state
-// transition runs here, not on the host screen: only the player whose turn it
-// is renders this, so there's exactly one writer and a guess lands with no
-// host round-trip. A hit keeps the turn; a miss or pass reveals one more
-// letter of the stuck word and hands the turn over. The answers live in
-// room.rounds like every other game — this device just applies the rules.
+// The active player's guess box in a duel. Each player chases their OWN chain;
+// only the turn is shared. Unlike most games the state transition runs here,
+// not on the host screen: exactly one device may act at a time (the host's
+// shot clock is the only other writer), so a guess lands with no host
+// round-trip. A hit keeps the turn; a miss or pass reveals one more letter of
+// MY stuck word — easier for me next turn — and hands the turn over. First to
+// the bottom of their own chain wins the round.
 export function DuelPanel({
   room,
-  round,
+  myRound,
   players,
   me,
   duel,
 }: {
   room: Room;
-  round: ChainRound;
+  myRound: ChainRound; // this player's own chain
   players: Player[];
   me: Player;
   duel: DuelState;
@@ -31,14 +34,15 @@ export function DuelPanel({
   const [guess, setGuess] = useState("");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const side = duel.sides[me.id] ?? FRESH_SIDE;
   useEffect(() => {
     setGuess("");
     inputRef.current?.focus();
-  }, [duel.solved, duel.reveal, duel.turn]);
+  }, [side.solved, side.reveal, duel.turn]);
 
-  const target = round.words[duel.solved + 1] as string | undefined;
+  const target = myRound.words[side.solved + 1] as string | undefined;
   if (!target) return null;
-  const worth = wordValue(duel.reveal, target.length);
+  const worth = wordValue(side.reveal, target.length);
   const rival = players.find((p) => p.id !== me.id);
 
   async function apply(next: DuelState, done: boolean) {
@@ -54,34 +58,46 @@ export function DuelPanel({
     if (!pass && !g) return;
     setBusy(true);
     if (!pass && chainGuessOk(g, target)) {
-      // Hit: bank the points, keep the turn.
+      // Hit: bank the points, keep the turn. Finishing my chain ends the round.
+      const solved = side.solved + 1;
+      const won = solved >= HIDDEN_WORDS;
       await supabase
         .from("arcade_players")
-        .update({ score: me.score + worth })
+        .update({ score: me.score + worth + (won ? WIN_BONUS : 0) })
         .eq("id", me.id);
-      const solved = duel.solved + 1;
       await apply(
-        { solved, reveal: 1, turn: me.id, last: { name: me.name, word: target, kind: "hit" } },
-        solved >= HIDDEN_WORDS,
+        {
+          sides: { ...duel.sides, [me.id]: { solved, reveal: 1 } },
+          turn: me.id,
+          last: { name: me.name, word: target, kind: "hit" },
+          winner: won ? me.id : null,
+        },
+        won,
       );
     } else {
-      // Miss or pass: one more letter shows, opponent takes over. If that
-      // letter was the last one hidden, the word is given away for nothing.
-      const reveal = duel.reveal + 1;
+      // Miss or pass: one more of MY letters shows, rival takes over. If that
+      // letter was the last one hidden, the word is given to me for nothing.
+      const reveal = side.reveal + 1;
       const turn = rival?.id ?? me.id;
       if (reveal >= target.length) {
-        const solved = duel.solved + 1;
+        const solved = side.solved + 1;
+        const won = solved >= HIDDEN_WORDS; // limping over the line still wins
         await apply(
-          { solved, reveal: 1, turn, last: { name: me.name, word: target, kind: "given" } },
-          solved >= HIDDEN_WORDS,
+          {
+            sides: { ...duel.sides, [me.id]: { solved, reveal: 1 } },
+            turn,
+            last: { name: me.name, word: target, kind: "given" },
+            winner: won ? me.id : null,
+          },
+          won,
         );
       } else {
         await apply(
           {
-            solved: duel.solved,
-            reveal,
+            sides: { ...duel.sides, [me.id]: { solved: side.solved, reveal } },
             turn,
             last: { name: me.name, word: pass ? "passed" : g, kind: "miss" },
+            winner: null,
           },
           false,
         );
@@ -123,10 +139,10 @@ export function DuelPanel({
         disabled={busy}
         className="self-center rounded-lg border border-line px-4 py-1.5 text-sm font-semibold text-fog hover:border-lose disabled:opacity-40"
       >
-        Pass — reveal a letter, {rival ? `${rival.name}'s` : "their"} turn
+        Pass — show one of my letters, {rival ? `${rival.name}'s` : "their"} turn
       </button>
       <p className="text-fog text-xs text-center">
-        A wrong guess also reveals a letter and hands over the turn.
+        A wrong guess (or the clock) also shows a letter and hands over the turn.
       </p>
     </div>
   );

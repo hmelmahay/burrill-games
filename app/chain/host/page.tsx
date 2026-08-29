@@ -15,17 +15,21 @@ export default function ChainHostSetup() {
   const [mode, setMode] = useState<ChainMode>("race");
   const [numChains, setNumChains] = useState(3);
   const [raceSeconds, setRaceSeconds] = useState(180);
+  const [duelSeconds, setDuelSeconds] = useState(20);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function start() {
     setBusy(true);
     setErr(null);
-    const rounds = shuffle(CHAIN_BANK).slice(0, MAX_CHAINS);
+    // A duel burns two chains per round (one per player), so always deal
+    // enough for either mode; a race just uses the first numChains of them.
+    const rounds = shuffle(CHAIN_BANK).slice(0, MAX_CHAINS * 2);
     const { room, error } = await createRoom("chain", rounds, {
       mode,
       numChains,
       raceSeconds,
+      duelSeconds,
     });
     if (error || !room) {
       setErr(error ?? "Couldn't create the room.");
@@ -91,8 +95,8 @@ export default function ChainHostSetup() {
             >
               <span className="font-bold block">⚔️ Duel</span>
               <span className="text-fog text-xs">
-                Two players, one chain, taking turns — miss and a letter is
-                revealed for your rival.
+                Two players, each on their own chain, taking turns — first to
+                the bottom of theirs wins.
               </span>
             </button>
           </div>
@@ -126,6 +130,26 @@ export default function ChainHostSetup() {
               <option value={120}>2 min</option>
               <option value={180}>3 min</option>
               <option value={240}>4 min</option>
+            </select>
+          </label>
+        )}
+        {mode === "duel" && (
+          <label className="flex items-center justify-between gap-3">
+            <span className="font-semibold">
+              Time per turn
+              <span className="block text-xs text-fog font-normal">
+                Clock runs out = a pass: your letter shows, turn swaps
+              </span>
+            </span>
+            <select
+              value={duelSeconds}
+              onChange={(e) => setDuelSeconds(Number(e.target.value))}
+              className="rounded-lg border border-line bg-card px-3 py-2"
+            >
+              <option value={10}>10s</option>
+              <option value={15}>15s</option>
+              <option value={20}>20s</option>
+              <option value={30}>30s</option>
             </select>
           </label>
         )}
