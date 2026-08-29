@@ -157,7 +157,9 @@ export function RacePanel({
       ) : left === 0 ? (
         <p className="text-center text-fog">⏰ Time! You solved {prog.solved}/{HIDDEN_WORDS}.</p>
       ) : (
-        <>
+        // Sticky: the guess box rides the bottom of the screen while the
+        // chain scrolls, so a phone never has to scroll down to type.
+        <div className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-2 rounded-t-xl bg-ink/95 px-1 pt-2 pb-2 backdrop-blur">
           <div className="flex gap-2">
             <input
               ref={inputRef}
@@ -196,7 +198,7 @@ export function RacePanel({
               💡 Buy a letter (−2)
             </button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
