@@ -22,10 +22,13 @@ import {
   ChainPhaseData,
   ChainResult,
   DuelState,
+  DuelSide,
+  FRESH_SIDE,
   RaceProgress,
   duelOpener,
+  duelChainIdx,
   HIDDEN_WORDS,
-  RACE_WIN_BONUS,
+  WIN_BONUS,
 } from "@/app/chain/constants";
 
 export default function ChainHost({ params }: { params: Promise<{ code: string }> }) {
@@ -38,7 +41,13 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
   const settings = (room?.settings ?? {}) as ChainSettings;
   const mode = settings.mode ?? "race";
   const raceSeconds = settings.raceSeconds ?? 180;
-  const totalChains = Math.min(settings.numChains ?? 3, room?.rounds.length ?? 0);
+  const duelSeconds = settings.duelSeconds ?? 20;
+  // A duel burns two chains per round (one per seat), a race one.
+  const chainsAvailable =
+    mode === "duel"
+      ? Math.floor((room?.rounds.length ?? 0) / 2)
+      : (room?.rounds.length ?? 0);
+  const totalChains = Math.min(settings.numChains ?? 3, chainsAvailable);
   const round = room ? (room.rounds[room.round_idx] as ChainRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as ChainPhaseData;
   const duel = phaseData.duel;
@@ -60,12 +69,14 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
   const playerIds = players.map((p) => p.id);
 
   function duelInit(chainIdx: number): DuelState {
-    return {
-      solved: 0,
-      reveal: 1,
-      turn: duelOpener(playerIds, chainIdx),
-      last: null,
-    };
+    const sides: Record<string, DuelSide> = {};
+    for (const id of playerIds) sides[id] = { ...FRESH_SIDE };
+    return { sides, turn: duelOpener(playerIds, chainIdx), last: null, winner: null };
+  }
+
+  function duelChainOf(seat: number): ChainRound | undefined {
+    if (!room) return undefined;
+    return room.rounds[duelChainIdx(room.round_idx, seat)] as ChainRound | undefined;
   }
 
   async function startGame() {
@@ -101,7 +112,7 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
     const results: ChainResult[] = players.map((p) => {
       const sub = rows.find((r) => r.player_id === p.id);
       const prog = (sub?.payload ?? {}) as Partial<RaceProgress>;
-      const bonus = firstDone && sub?.id === firstDone.id ? RACE_WIN_BONUS : 0;
+      const bonus = firstDone && sub?.id === firstDone.id ? WIN_BONUS : 0;
       return {
         player_id: p.id,
         name: p.name,
@@ -152,7 +163,7 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
   }, [someoneDone, deadlinePassed, room?.phase]);
 
   // Background tabs throttle timers; force a render when fronted again so an
-  // overdue reveal fires immediately (same pattern as Quiz Rush).
+  // overdue reveal or shot clock fires immediately (same pattern as Quiz Rush).
   const [, wake] = useState(0);
   useEffect(() => {
     const onWake = () => wake((n) => n + 1);
@@ -184,36 +195,65 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
     setBusy(false);
   }
 
-  // Unstick a duel whose active player wandered off: same as a pass, applied
-  // from the host screen — a letter shows and the turn swaps.
-  async function nudgeTurn() {
-    if (!room || !round || !duel) return;
-    const target = round.words[duel.solved + 1];
+  // Force a pass on the active player: their stuck word shows one more letter
+  // and the turn swaps. Fired by the shot clock below, or by the host button
+  // when someone wandered off.
+  async function forcePass(reason: "clock" | "host") {
+    if (!room || !duel) return;
+    const seat = players.findIndex((p) => p.id === duel.turn);
+    if (seat < 0) return;
+    const chain = duelChainOf(seat);
+    const side = duel.sides[duel.turn] ?? FRESH_SIDE;
+    const target = chain?.words[side.solved + 1];
     if (!target) return;
-    setBusy(true);
-    const active = players.find((p) => p.id === duel.turn);
+    const active = players[seat];
     const other = players.find((p) => p.id !== duel.turn);
-    const reveal = duel.reveal + 1;
+    const reveal = side.reveal + 1;
     const given = reveal >= target.length;
-    const solved = given ? duel.solved + 1 : duel.solved;
+    const solved = given ? side.solved + 1 : side.solved;
+    const won = solved >= HIDDEN_WORDS;
     const nextDuel: DuelState = {
-      solved,
-      reveal: given ? 1 : reveal,
+      sides: {
+        ...duel.sides,
+        [duel.turn]: given ? { solved, reveal: 1 } : { solved, reveal },
+      },
       turn: other?.id ?? duel.turn,
       last: given
         ? { name: active?.name ?? "?", word: target, kind: "given" }
-        : { name: active?.name ?? "?", word: "skipped", kind: "miss" },
+        : {
+            name: active?.name ?? "?",
+            word: reason === "clock" ? "out of time" : "skipped",
+            kind: "miss",
+          },
+      winner: won ? duel.turn : null,
     };
     await supabase
       .from("arcade_rooms")
       .update(
-        solved >= HIDDEN_WORDS
+        won
           ? { phase: "reveal", phase_data: { duel: nextDuel } }
           : { phase_data: { duel: nextDuel } },
       )
       .eq("id", room.id);
-    setBusy(false);
   }
+
+  // Duel shot clock. There's no server stamp for turn changes (they live in
+  // phase_data), so the host screen is the timekeeper: the countdown restarts
+  // whenever the duel state it can see changes, and fires exactly once per
+  // state. Clock skew on phones only affects their display, never the call.
+  const duelKey = duel
+    ? `${room?.round_idx}-${duel.turn}-${JSON.stringify(duel.sides)}`
+    : "off";
+  const duelLeft = useCountdown(duelKey, duelSeconds, room?.phase === "duel" && !!duel);
+  const shotRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (tvRef.current) return;
+    if (room?.phase !== "duel" || !duel || duelLeft > 0) return;
+    if (shotRef.current === duelKey) return;
+    shotRef.current = duelKey;
+    forcePass("clock");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duelLeft, room?.phase, duelKey]);
 
   if (error)
     return (
@@ -232,6 +272,8 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
   const canStart = mode === "duel" ? players.length === 2 : players.length >= 1;
   const activePlayer = duel ? players.find((p) => p.id === duel.turn) : undefined;
+  const mySeat = players.findIndex((p) => p.id === playerId);
+  const myChain = mySeat >= 0 ? duelChainOf(mySeat) : undefined;
 
   // Race progress board: solved counts straight from the live subs.
   const raceRows = players
@@ -244,6 +286,58 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
     })
     .sort((a, b) => b.solved - a.solved);
 
+  const lastBanner = duel?.last && (
+    <p className="text-center text-sm pop-in">
+      {duel.last.kind === "hit" && (
+        <span className="text-win font-bold">
+          ✓ {duel.last.name} got {duel.last.word}!
+        </span>
+      )}
+      {duel.last.kind === "miss" && (
+        <span className="text-lose font-bold">
+          ✗ {duel.last.name}: {duel.last.word.toUpperCase()} — turn passes
+        </span>
+      )}
+      {duel.last.kind === "given" && (
+        <span className="text-fog font-bold">
+          {duel.last.word} ran out of letters — {duel.last.name} gets it for free
+        </span>
+      )}
+    </p>
+  );
+
+  const duelBoards = (showAll: boolean) =>
+    duel && (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {players.map((p, seat) => {
+          const chain = duelChainOf(seat);
+          if (!chain) return null;
+          const side = duel.sides[p.id] ?? FRESH_SIDE;
+          const active = !showAll && duel.turn === p.id;
+          return (
+            <div
+              key={p.id}
+              className={`flex flex-col gap-2 rounded-xl border p-2 ${
+                active ? "border-violet" : "border-line"
+              }`}
+            >
+              <p className="text-center font-bold">
+                {active && "▶ "}
+                {p.name} — {side.solved}/{HIDDEN_WORDS}
+                {showAll && duel.winner === p.id && " 🏆"}
+              </p>
+              <ChainBoard
+                words={chain.words}
+                solved={side.solved}
+                reveal={side.reveal}
+                showAll={showAll}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+
   return (
     <Shell title="Chain Gang · host" icon="⛓️">
       {room.phase === "lobby" && (
@@ -251,7 +345,7 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
           <CodeBadge code={room.code} game="chain" />
           <p className="text-center text-fog text-sm">
             {mode === "duel"
-              ? "Duel needs exactly two players. Ten words per chain — miss and your rival gets a letter."
+              ? `Duel needs exactly two players — each gets their OWN chain. Miss and one of your letters shows, but the turn swaps. ${duelSeconds}s per turn; first to the bottom of their chain wins.`
               : "Race mode: everyone gets the same chain. First to the bottom wins the round."}
           </p>
           <div>
@@ -312,38 +406,19 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
         </div>
       )}
 
-      {room.phase === "duel" && round && duel && (
+      {room.phase === "duel" && duel && (
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between text-sm text-fog">
             <span>
               Chain {room.round_idx + 1}/{totalChains}
             </span>
-            <span>
-              {activePlayer ? `${activePlayer.name}'s turn` : "…"}
-            </span>
+            <span>{activePlayer ? `${activePlayer.name}'s turn` : "…"}</span>
           </div>
-          <ChainBoard words={round.words} solved={duel.solved} reveal={duel.reveal} />
-          {duel.last && (
-            <p className="text-center text-sm pop-in">
-              {duel.last.kind === "hit" && (
-                <span className="text-win font-bold">
-                  ✓ {duel.last.name} got {duel.last.word}!
-                </span>
-              )}
-              {duel.last.kind === "miss" && (
-                <span className="text-lose font-bold">
-                  ✗ {duel.last.name}: {duel.last.word.toUpperCase()} — turn passes
-                </span>
-              )}
-              {duel.last.kind === "given" && (
-                <span className="text-fog font-bold">
-                  {duel.last.word} ran out of letters — no points
-                </span>
-              )}
-            </p>
-          )}
-          {canPlay && me && duel.turn === me.id ? (
-            <DuelPanel room={room} round={round} players={players} me={me} duel={duel} />
+          <Countdown left={duelLeft} total={duelSeconds} />
+          {lastBanner}
+          {duelBoards(false)}
+          {canPlay && me && myChain && duel.turn === me.id ? (
+            <DuelPanel room={room} myRound={myChain} players={players} me={me} duel={duel} />
           ) : (
             <p className="text-center text-fog">
               Waiting on {activePlayer?.name ?? "the active player"}…
@@ -352,7 +427,7 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
           <Leaderboard players={players} highlightId={playerId} />
           {!tv && (
             <button
-              onClick={nudgeTurn}
+              onClick={() => forcePass("host")}
               disabled={busy}
               className="self-center rounded-lg border border-line px-4 py-1.5 text-sm text-fog hover:border-lose"
             >
@@ -362,27 +437,45 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
         </div>
       )}
 
-      {room.phase === "reveal" && round && (
+      {room.phase === "reveal" && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
             Chain {room.round_idx + 1}/{totalChains}
           </p>
-          {mode === "race" && (
-            <h1 className="text-2xl font-extrabold text-center">
-              {phaseData.winner ? `🏁 ${phaseData.winner} finished first!` : "⏰ Time!"}
-            </h1>
+          {mode === "race" ? (
+            <>
+              <h1 className="text-2xl font-extrabold text-center">
+                {phaseData.winner ? `🏁 ${phaseData.winner} finished first!` : "⏰ Time!"}
+              </h1>
+              {round && (
+                <ChainBoard words={round.words} solved={HIDDEN_WORDS} reveal={1} showAll />
+              )}
+              {(phaseData.results ?? []).length > 0 && (
+                <div className="flex flex-col gap-1 text-sm text-fog">
+                  {(phaseData.results ?? []).map((r) => (
+                    <p key={r.player_id} className="text-center">
+                      <span className="font-semibold text-white">{r.name}</span> — {r.detail}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-extrabold text-center">
+                🏆{" "}
+                {players.find((p) => p.id === phaseData.duel?.winner)?.name ??
+                  "Someone"}{" "}
+                finished their chain first!
+              </h1>
+              {duelBoards(true)}
+            </>
           )}
-          <ChainBoard words={round.words} solved={HIDDEN_WORDS} reveal={1} showAll />
-          {mode === "race" && (phaseData.results ?? []).length > 0 && (
-            <div className="flex flex-col gap-1 text-sm text-fog">
-              {(phaseData.results ?? []).map((r) => (
-                <p key={r.player_id} className="text-center">
-                  <span className="font-semibold text-white">{r.name}</span> — {r.detail}
-                </p>
-              ))}
-            </div>
-          )}
-          <Leaderboard players={players} gains={mode === "race" ? gains : undefined} highlightId={playerId} />
+          <Leaderboard
+            players={players}
+            gains={mode === "race" ? gains : undefined}
+            highlightId={playerId}
+          />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= totalChains ? "Finish game" : "Next chain"}
           </BigBtn>

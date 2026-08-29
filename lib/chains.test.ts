@@ -10,6 +10,7 @@ import {
   maskWord,
   chainGuessOk,
   duelOpener,
+  duelChainIdx,
   CHAIN_LEN,
   WORD_MAX,
   WORD_MIN,
@@ -69,6 +70,15 @@ check("wrong word rejected", chainGuessOk("shop", "WORK") === false);
 check("first chain opens with player 0", duelOpener(["a", "b"], 0) === "a");
 check("second chain opens with player 1", duelOpener(["a", "b"], 1) === "b");
 check("third chain wraps back", duelOpener(["a", "b"], 2) === "a");
+
+// --- duel chain dealing -------------------------------------------------
+// Each duel round consumes two chains, one per seat — no overlap anywhere.
+check("round 0 deals chains 0 and 1", duelChainIdx(0, 0) === 0 && duelChainIdx(0, 1) === 1);
+check("round 1 deals chains 2 and 3", duelChainIdx(1, 0) === 2 && duelChainIdx(1, 1) === 3);
+check(
+  "five duel rounds fit in the dealt deck",
+  duelChainIdx(4, 1) === 9 && CHAIN_BANK.length >= 10,
+);
 
 // --- report -------------------------------------------------------------
 console.log(`\n${passed} passed, ${failures.length} failed`);

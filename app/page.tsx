@@ -76,7 +76,7 @@ const GAMES: {
     slug: "chain",
     icon: "⛓️",
     name: "Chain Gang",
-    desc: "FIRE → WORK → SHOP: every word pairs with the next. Race the room down a 10-word chain, or duel head-to-head — miss and your rival gets a letter.",
+    desc: "FIRE → WORK → SHOP: every word pairs with the next. Race the room down a 10-word chain, or duel head-to-head on separate chains — 20s a turn, first to the bottom wins.",
   },
   {
     slug: "chameleon",
