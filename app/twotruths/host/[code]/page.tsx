@@ -1,13 +1,20 @@
 "use client";
 
 import { useRef, useState, use, useEffect } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
+import { useStaged } from "@/lib/motion";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { Dots, LockInRow, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { PlayerDot } from "@/app/components/brand";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import { shuffle } from "@/lib/rooms";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/twotruths/PlayerPanel";
+import { Verdicts } from "@/app/twotruths/Verdicts";
+import { REVEAL } from "@/app/twotruths/reveal";
 import {
   VOTER_POINTS,
   AUTHOR_POINTS_PER_FOOL,
@@ -23,6 +30,8 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
   const seat = useHostSeat("twotruths", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
+  // Play the reveal and the podium only for a screen that saw the phase start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   const settings = (room?.settings ?? {}) as { cycles?: number };
   const rounds = (room?.rounds ?? []) as TTRound[];
@@ -165,9 +174,15 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
   const hostIsAuthor = seat.canPlay && round?.author_id === seat.playerId;
   const hostVotes = seat.canPlay && !!seat.playerId && !hostIsAuthor;
+  // Voters the lie fooled (the author's "Fooled n" stamp on the reveal).
+  const fooled = (phaseData.results ?? []).filter((r) => r.vote != null && !r.correct).length;
 
   return (
-    <Shell title="Two Truths & a Lie · host" icon="🤥">
+    <Shell
+      title="Two Truths & a Lie · host"
+      icon="🤥"
+      attractKey={room.phase === "lobby" ? players.length : undefined}
+    >
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -179,7 +194,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 3}>
+          <BigBtn onClick={startGame} disabled={busy || players.length < 3} attention={players.length >= 3}>
             {players.length < 3
               ? "Need at least 3 players…"
               : `Start (${players.length * (settings.cycles ?? 1)} rounds)`}
@@ -208,7 +223,8 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
           </p>
           <p className="text-4xl">✍️</p>
           <h1 className="text-2xl font-extrabold text-center">
-            {round.author_name} is writing…
+            {round.author_name} is writing
+            <Dots />
           </h1>
           <p className="text-fog text-center">
             Two truths and one lie, coming up. Everyone else: stretch your lie-detector.
@@ -222,8 +238,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
       {room.phase === "vote" && round && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{rounds.length} · about {round.author_name} ·{" "}
-            {votes.length}/{voterCount} votes in
+            Round {room.round_idx + 1}/{rounds.length} · about {round.author_name}
           </p>
           {hostVotes && seat.playerId ? (
             <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
@@ -241,6 +256,11 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
               </div>
             </>
           )}
+          <LockInRow
+            players={players.filter((p) => p.id !== round.author_id)}
+            doneIds={votes.map((v) => v.player_id)}
+            label="votes in"
+          />
           <BigBtn onClick={reveal} disabled={busy || votes.length === 0} color="ghost">
             Reveal now ({votes.length} in)
           </BigBtn>
@@ -248,51 +268,33 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{rounds.length} · {round.author_name}&apos;s lie revealed
-          </p>
-          <div className="flex flex-col gap-2">
-            {(phaseData.statements ?? []).map((s, i) => {
-              const voters = (phaseData.results ?? [])
-                .filter((r) => r.vote === i)
-                .map((r) => r.name);
-              const isLie = phaseData.lie === i;
-              return (
-                <div
-                  key={i}
-                  className={`rounded-xl p-4 font-semibold border-2 ${
-                    isLie ? "border-lose bg-lose/20" : "border-win/50 bg-card"
-                  }`}
-                >
-                  {isLie ? "🤥 LIE: " : "✅ "}
-                  {s}
-                  {voters.length > 0 && (
-                    <span className="block text-xs text-fog font-normal mt-1">
-                      voted by {voters.join(", ")}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{rounds.length} · {round.author_name}&apos;s lie revealed
+            </p>
+            <Verdicts statements={phaseData.statements ?? []} lie={phaseData.lie} results={phaseData.results ?? []} />
+            <Reveal kind="fade" delayMs={REVEAL.fooled} className="flex items-center justify-center gap-3">
+              <PlayerDot id={round.author_id} name={round.author_name} />
+              <span className="min-w-0 truncate font-bold">{round.author_name}</span>
+              <Stamp tone="violet">Fooled {fooled}</Stamp>
+            </Reveal>
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next round"}
+            </BigBtn>
           </div>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next round"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <a href="/twotruths/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+          <Link href="/twotruths/host" className="tv-hide underline text-fog">
             Play again with a new room
-          </a>
-        </div>
+          </Link>
+        </FinalStandings>
       )}
     </Shell>
   );

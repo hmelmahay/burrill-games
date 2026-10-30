@@ -5,11 +5,18 @@ import Link from "next/link";
 import { supabase, Player } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
+import { useStaged } from "@/lib/motion";
+import type { Tone } from "@/lib/fx";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { Drumroll, LockInRow, Reveal, RevealScope, Stamp, VoteBars } from "@/app/components/fx";
+import { Marquee } from "@/app/components/brand";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import { shuffle } from "@/lib/rooms";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { WordGrid } from "@/app/chameleon/WordGrid";
 import { PlayerPanel } from "@/app/chameleon/PlayerPanel";
+import { LizardCycle } from "@/app/chameleon/LizardCycle";
+import { REVEAL, outcomeStamp, revealTease } from "@/app/chameleon/reveal";
 import { CHAMELEON_TOPICS } from "@/lib/content/chameleon";
 import {
   ESCAPE_POINTS,
@@ -31,6 +38,8 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
   const seat = useHostSeat("chameleon", code, players, refresh, playersLoaded);
   const myPlayerId = seat.playerId;
   const iAmPlaying = seat.canPlay;
+  // Play the reveal and the podium only for a screen that saw the phase start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   const settings = (room?.settings ?? {}) as { roundCount?: number };
   const rounds = (room?.rounds ?? []) as ChamRound[];
@@ -220,9 +229,23 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
   const accused = players.find((p) => p.id === phaseData.accused_id);
+  const stamp = round ? outcomeStamp(phaseData, round.secret_idx) : null;
+  // Votes each player received, for the reveal's bars. The real Chameleon's
+  // bar gets the lizard and the game's cyan; the accused gets the gold label.
+  const voteRows = round
+    ? players
+        .filter((p) => (phaseData.votes?.[p.id] ?? 0) > 0)
+        .map((p) => ({
+          id: p.id,
+          label: p.id === round.chameleon_id ? `🦎 ${p.name}` : p.name,
+          count: phaseData.votes?.[p.id] ?? 0,
+          tone: (p.id === round.chameleon_id ? "cyan" : "violet") as Tone,
+          lead: p.id === phaseData.accused_id,
+        }))
+    : [];
 
   return (
-    <Shell title="Chameleon · host" icon="🦎">
+    <Shell title="Chameleon · host" icon="🦎" attractKey={room.phase === "lobby" ? players.length : undefined}>
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -238,7 +261,7 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
             Clues are spoken out loud, so this one is humans-only — best with 4+
             in the same room.
           </p>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 3}>
+          <BigBtn onClick={startGame} disabled={busy || players.length < 3} attention={players.length >= 3}>
             {players.length < 3
               ? "Need at least 3 players…"
               : `Start (${settings.roundCount ?? 5} rounds)`}
@@ -282,7 +305,7 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
       {room.phase === "vote" && round && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{rounds.length} · {votes.length}/{players.length} votes in
+            Round {room.round_idx + 1}/{rounds.length}
           </p>
           <div className="rounded-2xl bg-card border-2 border-lose p-5 text-center">
             <div className="text-3xl">🗳️</div>
@@ -290,6 +313,7 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
             <p className="text-fog text-sm mt-1">Vote on your phones. Ties let the Chameleon escape!</p>
           </div>
           <WordGrid words={round.words} />
+          <LockInRow players={players} doneIds={votes.map((v) => v.player_id)} label="voted" />
           <BigBtn onClick={tally} disabled={busy || votes.length === 0} color="ghost">
             Close the vote now ({votes.length} in)
           </BigBtn>
@@ -297,88 +321,102 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
       )}
 
       {room.phase === "guess" && round && (
-        <div className="flex flex-col gap-4 items-center py-4">
-          <p className="text-4xl">🦎</p>
-          <h1 className="text-2xl font-extrabold text-center">
-            {round.chameleon_name} was the Chameleon — caught!
-          </h1>
-          <p className="text-fog text-sm text-center">
-            One way out: they&apos;re picking what they think the secret word was.
-            Guess right and they still score.
-          </p>
-          <WordGrid words={round.words} />
-          <BigBtn onClick={giveUp} disabled={busy} color="ghost">
-            They give up → reveal
-          </BigBtn>
-        </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4 items-center py-4">
+            <Marquee title="Last chance" size="lg" burstKey={room.round_idx} />
+            <div className="flex items-center gap-3">
+              <span className="text-4xl">🦎</span>
+              <Stamp tone="win" size="lg" delayMs={150}>
+                Caught
+              </Stamp>
+            </div>
+            <h1 className="text-2xl font-extrabold text-center">
+              {round.chameleon_name} was the Chameleon. Caught!
+            </h1>
+            <p className="text-fog text-sm text-center">
+              One way out: they&apos;re picking what they think the secret word was.
+              Guess right and they still score.
+            </p>
+            <WordGrid words={round.words} />
+            <BigBtn onClick={giveUp} disabled={busy} color="ghost">
+              They give up → reveal
+            </BigBtn>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{rounds.length} · topic: {round.topic}
-          </p>
-          <div
-            className={`rounded-2xl border-2 p-5 text-center ${
-              phaseData.caught && phaseData.guess_idx !== round.secret_idx
-                ? "border-win bg-win/10"
-                : "border-lose bg-lose/10"
-            }`}
-          >
-            <div className="text-3xl">🦎</div>
-            <div className="text-xl font-extrabold">
-              {round.chameleon_name} was the Chameleon
-            </div>
-            <p className="text-sm mt-1">
-              {!phaseData.caught
-                ? phaseData.accused_id
-                  ? `The room accused ${accused?.name ?? "someone else"} — the Chameleon escapes! +${ESCAPE_POINTS}`
-                  : `The vote tied — the Chameleon escapes! +${ESCAPE_POINTS}`
-                : phaseData.guess_idx == null
-                  ? `Caught — and gave up without a guess! Everyone else +${CATCHERS_POINTS}`
-                  : phaseData.guess_idx === round.secret_idx
-                    ? `Caught — but guessed “${round.words[round.secret_idx]}” right! +${CAUGHT_BUT_GUESSED_POINTS}`
-                    : `Caught, and guessed “${round.words[phaseData.guess_idx]}” — wrong! Everyone else +${CATCHERS_POINTS}`}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{rounds.length} · topic: {round.topic}
             </p>
+            <Drumroll ms={REVEAL.drum} tease={<span className="block text-center">{revealTease(phaseData.caught)}</span>}>
+              <div
+                className={`rounded-2xl border-2 p-5 text-center ${
+                  phaseData.caught && phaseData.guess_idx !== round.secret_idx
+                    ? "border-win bg-win/10"
+                    : "border-lose bg-lose/10"
+                }`}
+              >
+                <div className="text-3xl">
+                  <LizardCycle cycle={!phaseData.caught} />
+                </div>
+                <div className="text-xl font-extrabold">
+                  {round.chameleon_name} was the Chameleon
+                </div>
+                {stamp && (
+                  <div className="mt-2">
+                    <Stamp tone={stamp.tone} size="lg" delayMs={200}>
+                      {stamp.label}
+                    </Stamp>
+                  </div>
+                )}
+                <p className="text-sm mt-2">
+                  {!phaseData.caught
+                    ? phaseData.accused_id
+                      ? `The room accused ${accused?.name ?? "someone else"} — the Chameleon escapes! +${ESCAPE_POINTS}`
+                      : `The vote tied — the Chameleon escapes! +${ESCAPE_POINTS}`
+                    : phaseData.guess_idx == null
+                      ? `Caught — and gave up without a guess! Everyone else +${CATCHERS_POINTS}`
+                      : phaseData.guess_idx === round.secret_idx
+                        ? `Caught — but guessed “${round.words[round.secret_idx]}” right! +${CAUGHT_BUT_GUESSED_POINTS}`
+                        : `Caught, and guessed “${round.words[phaseData.guess_idx]}” — wrong! Everyone else +${CATCHERS_POINTS}`}
+                </p>
+              </div>
+            </Drumroll>
+            <WordGrid
+              words={round.words}
+              highlightIdx={round.secret_idx}
+              pickedIdx={
+                phaseData.guess_idx != null && phaseData.guess_idx !== round.secret_idx
+                  ? phaseData.guess_idx
+                  : null
+              }
+              flipDelayMs={REVEAL.grid}
+            />
+            {phaseData.votes && voteRows.length > 0 && (
+              // The whole block waits: the row order alone would name the accused.
+              <Reveal kind="fade" delayMs={REVEAL.bars}>
+                <VoteBars rows={voteRows} />
+              </Reveal>
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={myPlayerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next round"}
+            </BigBtn>
           </div>
-          <WordGrid
-            words={round.words}
-            highlightIdx={round.secret_idx}
-            pickedIdx={
-              phaseData.guess_idx != null && phaseData.guess_idx !== round.secret_idx
-                ? phaseData.guess_idx
-                : null
-            }
-          />
-          {phaseData.votes && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {players
-                .filter((p) => (phaseData.votes?.[p.id] ?? 0) > 0)
-                .sort((a, b) => (phaseData.votes?.[b.id] ?? 0) - (phaseData.votes?.[a.id] ?? 0))
-                .map((p) => (
-                  <span key={p.id} className="rounded-full bg-card border border-line px-3 py-1.5 text-sm">
-                    {p.name}: {phaseData.votes?.[p.id]} vote{(phaseData.votes?.[p.id] ?? 0) === 1 ? "" : "s"}
-                  </span>
-                ))}
-            </div>
-          )}
-          <Leaderboard players={players} gains={gains} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next round"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} />
-          </div>
-          <Link href="/chameleon/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={myPlayerId} size="host" staged={staged}>
+          <Link href="/chameleon/host" className="tv-hide underline text-fog">
             Play again with a new room
           </Link>
-        </div>
+        </FinalStandings>
       )}
     </Shell>
   );
