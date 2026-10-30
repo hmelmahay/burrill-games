@@ -6,9 +6,17 @@ import "./globals.css";
 // scores stay monospace; prompts, names and buttons stay in the system font.
 const display = Bungee({ weight: "400", subsets: ["latin"], variable: "--font-bungee", display: "swap" });
 
+// This app is the whole arcade:  burrill-arcade.vercel.app forwards here.
+const DESCRIPTION = "Pick a game. Host it and share the code, or join a friend's room.";
 export const metadata: Metadata = {
-  title: { default: "The Burr & Spill — Games", template: "%s · The Burr & Spill" },
-  description: "Party games from Steve Burrill & Mike Spille — phones as controllers",
+  title: { default: "The Burr & Spill", template: "%s · The Burr & Spill" },
+  description: DESCRIPTION,
+  openGraph: {
+    title: "The Burr & Spill",
+    description: DESCRIPTION,
+    url: "https://burrill-games.vercel.app/",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {
