@@ -62,8 +62,10 @@ export default async function TvEntry({
   const { err, code } = await searchParams;
   const errMsg = err ? ERRORS[err] ?? ERRORS.notfound : null;
   const rooms = await liveRooms();
+  // `calm`: any looping (.attract) piece stays still on the TV.  No entrance
+  // motion here either, since the page reloads itself every 15s.
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
+    <main className="calm flex flex-1 flex-col items-center justify-center gap-6 p-6">
       {/* React hoists this into <head>; browsers honor it in <body> anyway. */}
       <meta httpEquiv="refresh" content={String(REFRESH_SECONDS)} />
       <div className="text-5xl">📺</div>
@@ -76,7 +78,8 @@ export default async function TvEntry({
             <a
               key={r.id}
               href={`/tv/go?code=${r.code}`}
-              className="flex w-full items-center gap-4 rounded-2xl border-2 border-glow bg-card px-5 py-4 transition hover:bg-cardhover"
+              data-game={r.game}
+              className="cabinet remote-focus flex w-full items-center gap-4 px-5 py-4"
             >
               <span className="font-mono text-3xl font-extrabold tracking-[0.15em] text-glow">
                 {r.code}
@@ -101,11 +104,8 @@ export default async function TvEntry({
       </p>
       <form action="/tv/go" method="get" className="flex flex-col items-center gap-4">
         <CodeInput initialCode={code ?? ""} />
-        <button
-          type="submit"
-          className="rounded-xl bg-glow px-8 py-4 text-lg font-bold text-[#1a1000] transition hover:brightness-110"
-        >
-          Open scoreboard →
+        <button type="submit" className="coin-btn coin-glow remote-focus">
+          <span className="coin-face px-8 py-4 text-lg">Open scoreboard →</span>
         </button>
       </form>
       {errMsg && <p className="text-lose text-center">{errMsg}</p>}

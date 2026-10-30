@@ -5,6 +5,10 @@ import { useEffect, useRef } from "react";
 // /tv self-refreshes every few seconds; a half-typed code must survive that.
 const DRAFT_KEY = "tv-code-draft";
 
+// The coin-slot look.  A literal inline shadow, not a Tailwind shadow utility,
+// so older TV browsers draw it too.
+const SLOT_SHADOW = { boxShadow: "inset 0 3px 10px rgba(0,0,0,.6)" };
+
 function saveDraft(code: string) {
   try {
     if (code) sessionStorage.setItem(DRAFT_KEY, code);
@@ -53,7 +57,8 @@ export default function CodeInput({ initialCode }: { initialCode: string }) {
       autoCorrect="off"
       autoComplete="off"
       spellCheck={false}
-      className="rounded-xl border-2 border-glow bg-card px-4 py-5 text-center text-4xl font-mono tracking-[0.3em] uppercase placeholder:text-fog/40 w-64"
+      className="remote-focus rounded-xl border-2 border-glow bg-card px-4 py-5 text-center text-4xl font-mono tracking-[0.3em] uppercase placeholder:text-fog/40 w-64"
+      style={SLOT_SHADOW}
     />
   );
 }
