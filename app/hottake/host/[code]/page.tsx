@@ -6,8 +6,14 @@ import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, VoteBars } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { joinNames } from "@/lib/fx";
+import { useStaged } from "@/lib/motion";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/hottake/PlayerPanel";
+import { RoomSays } from "@/app/hottake/RoomSays";
+import { REVEAL } from "@/app/hottake/reveal";
 import {
   CROWD_POINTS,
   FAME_POINTS,
@@ -22,6 +28,8 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
   const { room, players, subs, error, refresh, playersLoaded } = useRoom("hottake", code);
   const { tvRef } = useSpectator();
   const seat = useHostSeat("hottake", code, players, refresh, playersLoaded);
+  // Visual only: should this screen play the staged reveal for the current phase?
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -118,9 +126,10 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
   const countRows = Object.entries(phaseData.counts ?? {}).sort((a, b) => b[1] - a[1]);
+  const top = phaseData.top ?? [];
 
   return (
-    <Shell title="Hot Take · host" icon="🔥">
+    <Shell title="Hot Take · host" icon="🔥" attractKey={room.phase === "lobby" ? players.length : undefined}>
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -132,7 +141,7 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 3}>
+          <BigBtn onClick={startGame} disabled={busy || players.length < 3} attention={players.length >= 3}>
             {players.length < 3
               ? "Need at least 3 players…"
               : `Start (${totalRounds} rounds)`}
@@ -143,9 +152,9 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
       {room.phase === "vote" && round && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds} · {answered.length}/{players.length} voted
+            Round {room.round_idx + 1}/{totalRounds}
           </p>
-          <div className="rounded-2xl bg-card border-2 border-glow p-6 text-center">
+          <div className="neon-panel p-6 text-center">
             <div className="text-fog text-sm uppercase tracking-widest mb-1">
               Who&apos;s most likely to…
             </div>
@@ -158,6 +167,7 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
           ) : (
             <p className="text-fog text-center text-sm">Vote on your phones. Choose wisely.</p>
           )}
+          <LockInRow players={players} doneIds={answered.map((s) => s.player_id)} label="voted" />
           <BigBtn onClick={reveal} disabled={busy || answered.length === 0} color="ghost">
             Reveal now ({answered.length} in)
           </BigBtn>
@@ -165,44 +175,41 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds} · who&apos;s most likely to {round.p}
-          </p>
-          <div className="rounded-2xl bg-card border-2 border-glow p-5 text-center">
-            <div className="text-4xl">🏅</div>
-            <div className="text-2xl font-extrabold">
-              {(phaseData.top ?? []).map(nameOf).join(" & ") || "Nobody?!"}
-            </div>
-            <div className="text-fog text-sm">the room has spoken</div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{totalRounds}
+            </p>
+            <RoomSays names={joinNames(top.map(nameOf)) || "Nobody?!"} tie={top.length > 1} prompt={round.p} />
+            {countRows.length > 0 && (
+              <Reveal kind="fade" delayMs={REVEAL.bars} className="rounded-xl bg-card border border-line p-3">
+                <VoteBars
+                  rows={countRows.map(([id, n]) => ({
+                    id,
+                    label: nameOf(id),
+                    count: n,
+                    lead: top.includes(id),
+                    tone: top.includes(id) ? ("gold" as const) : undefined,
+                  }))}
+                />
+              </Reveal>
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
+            </BigBtn>
           </div>
-          <div className="rounded-xl bg-card border border-line p-3 text-sm flex flex-col gap-1">
-            {countRows.map(([id, n]) => (
-              <div key={id} className="flex justify-between">
-                <span className="font-semibold">{nameOf(id)}</span>
-                <span className="text-fog">
-                  {n} vote{n === 1 ? "" : "s"}
-                </span>
-              </div>
-            ))}
-          </div>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <Link href="/hottake/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+          <Link href="/hottake/host" className="tv-hide underline text-fog">
             Play again with a new room
           </Link>
-        </div>
+        </FinalStandings>
       )}
     </Shell>
   );

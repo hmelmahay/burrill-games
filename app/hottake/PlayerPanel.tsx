@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Player, Sub } from "@/lib/supabase";
+import { PlayerDot } from "@/app/components/brand";
 
 // A player's vote for this round's "most likely to". Shared by the phone view
 // and the host screen, so whoever runs the room can play on the same device
@@ -50,12 +51,17 @@ export function PlayerPanel({
           <button
             key={p.id}
             onClick={() => vote(p.id)}
-            className={`rounded-xl p-4 font-bold border-2 border-line bg-card active:scale-95 transition ${
+            className={`press rounded-xl p-4 font-bold border-2 border-line bg-card ${
               p.id === playerId ? "border-violet" : ""
             }`}
           >
-            {p.name}
-            {p.id === playerId ? " (me!)" : ""}
+            <span className="inline-flex max-w-full items-center gap-2">
+              <PlayerDot id={p.id} name={p.name} />
+              <span className="min-w-0 break-words">
+                {p.name}
+                {p.id === playerId ? " (me!)" : ""}
+              </span>
+            </span>
           </button>
         ))}
       </div>
