@@ -5,9 +5,11 @@ import Link from "next/link";
 import { supabase, MajorityRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
-import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
+import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
 import { addBot, removeBot, humansOf, botsOf, botSkill, crowdBias, botBinaryVote, botPredict } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
+import { useHostSeat } from "@/lib/useHostSeat";
+import { PlayerPanel } from "@/app/majority/PlayerPanel";
 import {
   PREDICT_POINTS,
   TIE_POINTS,
@@ -17,8 +19,9 @@ import {
 
 export default function MajorityHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("majority", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("majority", code);
   const { tvRef } = useSpectator();
+  const seat = useHostSeat("majority", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -146,7 +149,8 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
     <Shell title="Majority Rules · host" icon="🐑">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="majority" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Majority Rules → Join, with the code.
           </p>
@@ -189,19 +193,27 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
           <p className="text-sm text-fog text-center">
             Round {room.round_idx + 1}/{totalRounds} · {answered.length}/{players.length} voted
           </p>
-          <h1 className="text-2xl font-extrabold text-center">Which one, room?</h1>
-          <div className="grid grid-cols-1 gap-3">
-            <div className="rounded-xl bg-glow text-[#1a1000] p-5 text-center font-bold text-xl">
-              {round.a}
+          {seat.canPlay && seat.playerId ? (
+            <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+              <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
             </div>
-            <div className="text-center text-fog font-bold">vs</div>
-            <div className="rounded-xl bg-violet text-white p-5 text-center font-bold text-xl">
-              {round.b}
-            </div>
-          </div>
-          <p className="text-fog text-sm text-center">
-            Everyone votes on their phone and predicts the majority.
-          </p>
+          ) : (
+            <>
+              <h1 className="text-2xl font-extrabold text-center">Which one, room?</h1>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="rounded-xl bg-glow text-[#1a1000] p-5 text-center font-bold text-xl">
+                  {round.a}
+                </div>
+                <div className="text-center text-fog font-bold">vs</div>
+                <div className="rounded-xl bg-violet text-white p-5 text-center font-bold text-xl">
+                  {round.b}
+                </div>
+              </div>
+              <p className="text-fog text-sm text-center">
+                Everyone votes on their phone and predicts the majority.
+              </p>
+            </>
+          )}
           <BigBtn onClick={reveal} disabled={busy || answered.length === 0} color="ghost">
             Reveal now ({answered.length} in)
           </BigBtn>
@@ -234,7 +246,7 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
                 : `Majority: ${phaseData.majority === "a" ? round.a : round.b}`}
             </p>
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
           </BigBtn>
@@ -245,7 +257,7 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <Link href="/majority/host" className="underline text-fog">
             Play again with a new room

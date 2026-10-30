@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, BigBtn } from "@/app/components/ui";
-import { createRoom, hostKey } from "@/lib/rooms";
+import { createRoom, hostKey, seatCreator } from "@/lib/rooms";
 
 export default function DoodleHostSetup() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [cycles, setCycles] = useState(1);
   const [drawSeconds, setDrawSeconds] = useState(90);
   const [busy, setBusy] = useState(false);
@@ -22,7 +23,12 @@ export default function DoodleHostSetup() {
       setBusy(false);
       return;
     }
-    localStorage.setItem(hostKey(room.code), "true");
+    try {
+      localStorage.setItem(hostKey(room.code), "true");
+    } catch {}
+    // Creating a room shouldn't lock you out of your own game: if you gave a
+    // name, you're seated as a player and the host screen shows your controls.
+    await seatCreator("doodle", room.code, name);
     router.push(`/doodle/host/${room.code}`);
   }
 
@@ -34,6 +40,20 @@ export default function DoodleHostSetup() {
           One player sketches on their phone, everyone watches it appear live and races
           to type the answer. Fast guesses score big; the artist scores per correct guess.
         </p>
+        <label className="flex flex-col gap-1">
+          <span className="font-semibold">Your name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Playing too? Enter your name"
+            maxLength={20}
+            autoComplete="off"
+            className="rounded-lg border border-line bg-card px-3 py-2"
+          />
+          <span className="text-fog text-xs">
+            Leave blank to run this screen as a scoreboard only.
+          </span>
+        </label>
         <label className="flex items-center justify-between gap-3">
           <span className="font-semibold">Turns per artist</span>
           <select

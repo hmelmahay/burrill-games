@@ -1,23 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, Game, Card } from "@/lib/needle/types";
+import { supabase, Game } from "@/lib/needle/types";
+import { claimCard, needleCardKey, needleNameKey } from "@/lib/needle/cards";
 
 export default function JoinPage() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A second tap mid-join would claim a second card for the same person.
+  const joiningRef = useRef(false);
   const router = useRouter();
 
   async function join() {
+    if (joiningRef.current) return;
+    joiningRef.current = true;
+    const ok = await tryJoin();
+    if (!ok) joiningRef.current = false;
+  }
+
+  async function tryJoin(): Promise<boolean> {
     setErr(null);
     const c = code.trim().toUpperCase();
     const n = name.trim();
     if (c.length !== 4 || !n) {
       setErr("Enter a 4-char code and your name.");
-      return;
+      return false;
     }
     setBusy(true);
 
@@ -29,45 +39,28 @@ export default function JoinPage() {
     if (gErr || !game) {
       setErr("Game not found.");
       setBusy(false);
-      return;
+      return false;
     }
     const g = game as Game;
     if (g.status === "ended") {
       setErr("That game has ended.");
       setBusy(false);
-      return;
+      return false;
     }
 
-    // Claim the next unclaimed card.
-    const { data: card, error: cErr } = await supabase
-      .from("cards")
-      .select("*")
-      .eq("game_id", g.id)
-      .eq("claimed", false)
-      .order("label", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (cErr || !card) {
-      setErr("All cards taken in this game.");
+    const { card, error: claimErr } = await claimCard(g.id, n);
+    if (claimErr || !card) {
+      setErr(claimErr ?? "Couldn't claim a card. Try again.");
       setBusy(false);
-      return;
-    }
-    const { error: uErr } = await supabase
-      .from("cards")
-      .update({ claimed: true, player_name: n })
-      .eq("id", (card as Card).id)
-      .eq("claimed", false);
-    if (uErr) {
-      setErr("Couldn't claim a card. Try again.");
-      setBusy(false);
-      return;
+      return false;
     }
     // Stash card id locally so the play screen knows who they are.
     if (typeof window !== "undefined") {
-      localStorage.setItem(`needle-card-${c}`, (card as Card).id);
-      localStorage.setItem(`needle-name-${c}`, n);
+      localStorage.setItem(needleCardKey(c), card.id);
+      localStorage.setItem(needleNameKey(c), n);
     }
     router.push(`/needle/play/${c}`);
+    return true;
   }
 
   return (
@@ -95,6 +88,7 @@ export default function JoinPage() {
         />
         <button
           onClick={join}
+          disabled={busy}
           className="rounded-lg bg-black dark:bg-white text-white dark:text-black py-4 font-semibold disabled:opacity-40"
         >
           {busy ? "Joining…" : "Join"}

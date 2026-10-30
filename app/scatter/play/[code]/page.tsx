@@ -1,70 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState, use } from "react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { supabase, ScatterRound } from "@/lib/supabase";
+import { ScatterRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { POINTS_PER_ANSWER, ScatterPhaseData } from "@/app/scatter/constants";
+import { PlayerPanel } from "@/app/scatter/PlayerPanel";
 
 export default function ScatterPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("scatter", code);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<string[]>(["", "", "", "", ""]);
-  const [sent, setSent] = useState(false);
-  const answersRef = useRef(answers);
-  answersRef.current = answers;
-  const sentRef = useRef(false);
 
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
-
-  useEffect(() => {
-    setAnswers(["", "", "", "", ""]);
-    setSent(false);
-    sentRef.current = false;
-  }, [room?.round_idx]);
 
   const settings = (room?.settings ?? {}) as { roundSeconds?: number };
   const roundSeconds = settings.roundSeconds ?? 60;
   const round = room ? (room.rounds[room.round_idx] as ScatterRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as ScatterPhaseData;
   const me = players.find((p) => p.id === playerId);
-  const mySub = subs.find(
-    (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
-  );
 
   const left = useCountdown(
     `${room?.round_idx}-${room?.phase}`,
     roundSeconds,
     room?.phase === "write",
   );
-
-  async function handIn() {
-    if (!room || !playerId || sentRef.current || mySub) return;
-    sentRef.current = true;
-    setSent(true);
-    const { error: e } = await supabase.from("arcade_subs").insert({
-      room_id: room.id,
-      player_id: playerId,
-      round_idx: room.round_idx,
-      payload: { answers: answersRef.current.map((a) => a.trim()) },
-    });
-    if (e && e.code !== "23505") {
-      sentRef.current = false;
-      setSent(false);
-    }
-  }
-
-  // Auto-hand-in when the clock hits zero (or judging starts before we sent).
-  useEffect(() => {
-    if (room?.phase === "write" && left === 0) handIn();
-    if (room?.phase === "judge" && !sent && !mySub) handIn();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [left, room?.phase]);
 
   if (error)
     return (
@@ -87,7 +51,6 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
     );
 
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
-  const locked = sent || !!mySub;
 
   return (
     <Shell title={`Scatter Sprint · ${me.name}`} icon="📝">
@@ -109,40 +72,12 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
               {round.letter}
             </span>
           </div>
-          {!locked ? (
-            <>
-              {round.categories.map((cat, i) => (
-                <label key={i} className="flex flex-col gap-1">
-                  <span className="text-sm font-semibold">{cat}</span>
-                  <input
-                    value={answers[i]}
-                    onChange={(e) =>
-                      setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))
-                    }
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    maxLength={40}
-                    className="rounded-lg border border-line bg-card px-3 py-2.5"
-                    placeholder={`${round.letter}…`}
-                  />
-                </label>
-              ))}
-              <button
-                onClick={handIn}
-                className="rounded-xl bg-glow text-[#1a1000] py-3.5 font-bold text-lg mt-1"
-              >
-                Hand in early
-              </button>
-            </>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8">
-              <p className="text-3xl">📬</p>
-              <p className="font-bold text-xl">Handed in!</p>
-              <p className="text-fog">Waiting for the timer…</p>
-            </div>
-          )}
         </div>
+      )}
+
+      {/* Mounted through judging so a sheet that wasn't sent yet still lands. */}
+      {(room.phase === "write" || room.phase === "judge") && playerId && (
+        <PlayerPanel room={room} subs={subs} playerId={playerId} left={left} />
       )}
 
       {room.phase === "judge" && (

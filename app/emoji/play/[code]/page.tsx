@@ -2,54 +2,33 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { supabase, EmojiRound } from "@/lib/supabase";
+import { EmojiRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { EmojiPhaseData } from "@/app/emoji/constants";
+import { PlayerPanel } from "@/app/emoji/PlayerPanel";
 
 export default function EmojiPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("emoji", code);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [guess, setGuess] = useState("");
-  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
-
-  useEffect(() => {
-    setGuess("");
-    setSent(false);
-  }, [room?.round_idx]);
 
   const settings = (room?.settings ?? {}) as { guessSeconds?: number };
   const guessSeconds = settings.guessSeconds ?? 30;
   const round = room ? (room.rounds[room.round_idx] as EmojiRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as EmojiPhaseData;
   const me = players.find((p) => p.id === playerId);
-  const mySub = subs.find(
-    (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
-  );
 
   const left = useCountdown(
     `${room?.round_idx}-${room?.phase}`,
     guessSeconds,
     room?.phase === "guess",
   );
-
-  async function submit() {
-    if (!room || !playerId || mySub || sent || !guess.trim()) return;
-    setSent(true);
-    const { error: e } = await supabase.from("arcade_subs").insert({
-      room_id: room.id,
-      player_id: playerId,
-      round_idx: room.round_idx,
-      payload: { guess: guess.trim() },
-    });
-    if (e && e.code !== "23505") setSent(false);
-  }
 
   if (error)
     return (
@@ -72,7 +51,6 @@ export default function EmojiPlay({ params }: { params: Promise<{ code: string }
     );
 
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
-  const locked = sent || !!mySub;
 
   return (
     <Shell title={`Emoji Cinema · ${me.name}`} icon="🎬">
@@ -92,39 +70,7 @@ export default function EmojiPlay({ params }: { params: Promise<{ code: string }
             <div className="text-5xl leading-tight tracking-wider">{round.emoji}</div>
             <div className="text-fog text-xs mt-2 uppercase tracking-widest">{round.kind}</div>
           </div>
-          {!locked && left > 0 ? (
-            <>
-              <input
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-                placeholder="Your guess…"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
-                maxLength={60}
-                className="rounded-xl border-2 border-glow bg-card px-4 py-4 text-lg"
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-              />
-              <button
-                onClick={submit}
-                disabled={!guess.trim()}
-                className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg disabled:opacity-40"
-              >
-                Lock it in
-              </button>
-            </>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-6">
-              {locked ? (
-                <>
-                  <p className="font-bold text-xl">🔒 “{mySub ? String(mySub.payload.guess) : guess}”</p>
-                  <p className="text-fog">Waiting for everyone…</p>
-                </>
-              ) : (
-                <p className="text-fog text-xl">⏰ Time&apos;s up!</p>
-              )}
-            </div>
-          )}
+          {playerId && <PlayerPanel room={room} subs={subs} playerId={playerId} left={left} />}
         </div>
       )}
 

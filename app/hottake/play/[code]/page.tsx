@@ -2,11 +2,11 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { Shell, Leaderboard } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { HotTakePhaseData } from "@/app/hottake/constants";
+import { PlayerPanel } from "@/app/hottake/PlayerPanel";
 
 type HotTakeRound = { p: string };
 
@@ -14,37 +14,15 @@ export default function HotTakePlay({ params }: { params: Promise<{ code: string
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("hottake", code);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
 
-  useEffect(() => {
-    setSent(false);
-  }, [room?.round_idx]);
-
   const round = room ? (room.rounds[room.round_idx] as HotTakeRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as HotTakePhaseData;
   const me = players.find((p) => p.id === playerId);
-  const mySub = subs.find(
-    (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
-  );
-  const locked = sent || !!mySub;
-  const myTarget = (mySub?.payload as { target?: string } | undefined)?.target;
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "?";
-
-  async function vote(targetId: string) {
-    if (!room || !playerId || locked) return;
-    setSent(true);
-    const { error: e } = await supabase.from("arcade_subs").insert({
-      room_id: room.id,
-      player_id: playerId,
-      round_idx: room.round_idx,
-      payload: { target: targetId },
-    });
-    if (e && e.code !== "23505") setSent(false);
-  }
 
   if (error)
     return (
@@ -88,28 +66,8 @@ export default function HotTakePlay({ params }: { params: Promise<{ code: string
             </div>
             <h1 className="text-xl font-extrabold">{round.p}</h1>
           </div>
-          {!locked ? (
-            <div className="grid grid-cols-2 gap-2">
-              {players.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => vote(p.id)}
-                  className={`rounded-xl p-4 font-bold border-2 border-line bg-card active:scale-95 transition ${
-                    p.id === playerId ? "border-violet" : ""
-                  }`}
-                >
-                  {p.name}
-                  {p.id === playerId ? " (me!)" : ""}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-6">
-              <p className="font-bold text-xl">
-                🔒 You said {myTarget ? nameOf(myTarget) : "…"}
-              </p>
-              <p className="text-fog">Waiting for everyone…</p>
-            </div>
+          {playerId && (
+            <PlayerPanel room={room} players={players} subs={subs} playerId={playerId} />
           )}
         </div>
       )}

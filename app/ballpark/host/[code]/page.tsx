@@ -5,10 +5,12 @@ import Link from "next/link";
 import { supabase, BallparkRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
-import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
+import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botNumberGuess, botBlindNumber } from "@/lib/bots";
 import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
+import { useHostSeat } from "@/lib/useHostSeat";
+import { PlayerPanel } from "@/app/ballpark/PlayerPanel";
 import {
   RANK_POINTS,
   PARTICIPATION_POINTS,
@@ -19,8 +21,9 @@ import {
 
 export default function BallparkHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("ballpark", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("ballpark", code);
   const { tvRef } = useSpectator();
+  const seat = useHostSeat("ballpark", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -163,7 +166,8 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
     <Shell title="Ballpark · host" icon="🎯">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="ballpark" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Ballpark → Join, with the code.
           </p>
@@ -212,6 +216,11 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
           <div className="rounded-2xl bg-card border-2 border-violet p-6 text-center">
             <h1 className="text-2xl font-extrabold">{round.q}</h1>
           </div>
+          {seat.canPlay && seat.playerId && (
+            <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+              <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
+            </div>
+          )}
           <p className="text-fog text-center text-sm">
             Closest guess takes the round. Exact answer gets a bonus.
           </p>
@@ -245,7 +254,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
               </div>
             ))}
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
           </BigBtn>
@@ -256,7 +265,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <Link href="/ballpark/host" className="underline text-fog">
             Play again with a new room

@@ -66,3 +66,16 @@ export async function joinRoom(
 // localStorage keys so refreshes rehydrate
 export const playerKey = (code: string) => `arcade-player-${code}`;
 export const hostKey = (code: string) => `arcade-host-${code}`;
+
+// Seat whoever created the room, if they gave a name. Best effort: the room
+// already exists, so a failure here must not strand it; the lobby's
+// "Playing too?" card lets them take the seat from the room itself.
+export async function seatCreator(game: GameKind, code: string, name: string) {
+  const n = name.trim();
+  if (!n) return;
+  const { player } = await joinRoom(game, code, n);
+  if (!player) return;
+  try {
+    localStorage.setItem(playerKey(code), player.id);
+  } catch {}
+}

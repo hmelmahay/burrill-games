@@ -10,23 +10,31 @@ export function useRoom(game: string, code: string) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // False until the first good players read, so "my seat isn't in the list"
+  // can be told apart from "the list hasn't loaded yet".
+  const [playersLoaded, setPlayersLoaded] = useState(false);
   const roomIdRef = useRef<string | null>(null);
 
-  async function refresh() {
-    const { data: r } = await supabase
+  // Resolves false when a read failed and is worth retrying.
+  async function refresh(): Promise<boolean> {
+    const { data: r, error: rErr } = await supabase
       .from("arcade_rooms")
       .select("*")
       .eq("code", code)
       .eq("game", game)
       .maybeSingle();
+    // A failed read is a network blip, not a missing room: keep the last good
+    // state rather than stranding the screen on "Room not found".
+    if (rErr) return false;
     if (!r) {
       setError("Room not found.");
-      return;
+      return true;
     }
+    setError(null);
     const rm = r as Room;
     roomIdRef.current = rm.id;
     setRoom(rm);
-    const [{ data: ps }, { data: ss }] = await Promise.all([
+    const [{ data: ps, error: pErr }, { data: ss, error: sErr }] = await Promise.all([
       supabase
         .from("arcade_players")
         .select("*")
@@ -39,12 +47,31 @@ export function useRoom(game: string, code: string) {
         .eq("round_idx", rm.round_idx)
         .order("created_at", { ascending: true }),
     ]);
-    setPlayers((ps as Player[]) ?? []);
-    setSubs((ss as Sub[]) ?? []);
+    // Same for the lists: an empty players list would make every screen think
+    // its own player left, unmounting whatever they were halfway through typing.
+    if (!pErr && ps) {
+      setPlayers(ps as Player[]);
+      setPlayersLoaded(true);
+    }
+    if (!sErr && ss) setSubs(ss as Sub[]);
+    return !pErr && !sErr;
   }
 
+  // The first load retries until the room row arrives; after that the Realtime
+  // channel and the backstop poll below keep everything current.
   useEffect(() => {
-    refresh();
+    let stopped = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    roomIdRef.current = null;
+    const load = async () => {
+      const ok = await refresh();
+      if (!ok && !stopped && !roomIdRef.current) retry = setTimeout(load, 3000);
+    };
+    load();
+    return () => {
+      stopped = true;
+      if (retry) clearTimeout(retry);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, game]);
 
@@ -84,6 +111,15 @@ export function useRoom(game: string, code: string) {
           ),
       )
       .on(
+        // Removing a bot or giving up a host seat deletes a player row; drop it
+        // now, not at the next poll, so a quick Start can't seat a ghost.
+        // (Same unfiltered-DELETE caveat as arcade_subs below.)
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "arcade_players" },
+        (payload) =>
+          setPlayers((ps) => ps.filter((p) => p.id !== (payload.old as { id: string }).id)),
+      )
+      .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "arcade_subs", filter: `room_id=eq.${roomId}` },
         (payload) =>
@@ -119,7 +155,7 @@ export function useRoom(game: string, code: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
-  return { room, players, subs, error, refresh };
+  return { room, players, subs, error, refresh, playersLoaded };
 }
 
 // Countdown that restarts when `key` changes (e.g. phase or round change).

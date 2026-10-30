@@ -2,22 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Player, Sub } from "@/lib/supabase";
+import { PeekGuard } from "@/app/components/ui";
 import { VibeRound, VibePhaseData } from "@/app/vibe/constants";
 
 // Everything a player *does* in Vibe Check: write a clue when you're the
 // psychic, slide a dial when you're not. Shared by the phone view and the
 // host screen, so whoever created the room can play on the same device
-// instead of being locked out of their own game.
+// instead of being locked out of their own game. `conceal` (host screen) puts
+// the psychic's secret spot behind a tap and hides a locked-in dial, since
+// others can see that screen.
 export function PlayerPanel({
   room,
   players,
   subs,
   playerId,
+  conceal,
 }: {
   room: Room;
   players: Player[];
   subs: Sub[];
   playerId: string;
+  conceal?: boolean;
 }) {
   const [clue, setClue] = useState("");
   const [dial, setDial] = useState(50);
@@ -64,7 +69,7 @@ export function PlayerPanel({
   if (!me || !round) return null;
 
   if (room.phase === "clue" && isPsychic && !locked) {
-    return (
+    const secret = (
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-extrabold text-center">🔮 You&apos;re the psychic!</h2>
         <div className="flex justify-between font-bold">
@@ -98,6 +103,13 @@ export function PlayerPanel({
           Send clue
         </button>
       </div>
+    );
+    return conceal ? (
+      <PeekGuard key={room.round_idx} label="You're the psychic: tap to see your spot">
+        {secret}
+      </PeekGuard>
+    ) : (
+      secret
     );
   }
 
@@ -154,7 +166,9 @@ export function PlayerPanel({
         ) : (
           <div className="flex flex-col items-center gap-1 py-4">
             <p className="font-bold text-2xl font-mono">
-              🔒 {(mySub?.payload as { guess?: number } | undefined)?.guess ?? dial}
+              {conceal
+                ? "🔒 Locked in"
+                : `🔒 ${(mySub?.payload as { guess?: number } | undefined)?.guess ?? dial}`}
             </p>
             <p className="text-fog">Waiting for everyone…</p>
           </div>

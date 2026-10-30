@@ -5,11 +5,11 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
-import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
+import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
 import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
 import { PlayerPanel } from "@/app/vibe/PlayerPanel";
-import { playerKey } from "@/lib/rooms";
+import { useHostSeat } from "@/lib/useHostSeat";
 import { addBot, removeBot, isBot, humansOf, botsOf, botSkill, botDialGuess, botBlindDial, botPsychicSpot, botDelayMs } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
 import { useBotAnswer } from "@/lib/useBotAnswer";
@@ -26,18 +26,16 @@ import {
 
 export default function VibeHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("vibe", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("vibe", code);
   const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
 
   const [botErr, setBotErr] = useState<string | null>(null);
   // Set when whoever opened this screen also joined as a player.
-  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
-  useEffect(() => {
-    setMyPlayerId(localStorage.getItem(playerKey(code)));
-  }, [code]);
-  const iAmPlaying = !!myPlayerId && players.some((p) => p.id === myPlayerId);
+  const seat = useHostSeat("vibe", code, players, refresh, playersLoaded);
+  const myPlayerId = seat.playerId;
+  const iAmPlaying = seat.canPlay;
   const settings = (room?.settings ?? {}) as { cycles?: number };
   const rounds = (room?.rounds ?? []) as VibeRound[];
   const round = room ? rounds[room.round_idx] : undefined;
@@ -101,10 +99,14 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     if (advancingRef.current === key) return;
     advancingRef.current = key;
     const clue = (psychicSub.payload as { clue?: string }).clue ?? "";
+    // Only for this round: if a Skip already moved the room on, this must not
+    // open the next round's guessing with this round's clue.
     supabase
       .from("arcade_rooms")
       .update({ phase: "guess", phase_data: { clue } })
       .eq("id", room.id)
+      .eq("round_idx", room.round_idx)
+      .eq("phase", "clue")
       .then(({ error: e }) => {
         if (e) console.error("open guessing failed:", e.message);
       });
@@ -250,7 +252,8 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
     <Shell title="Vibe Check · host" icon="🌡️">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="vibe" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Vibe Check → Join, with the code.
           </p>
@@ -292,9 +295,13 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
         </div>
       )}
 
-      {iAmPlaying && myPlayerId && (room.phase === "clue" || room.phase === "guess") && (
+      {/* While someone else writes their clue there's nothing for this seat to do. */}
+      {iAmPlaying &&
+        myPlayerId &&
+        (room.phase === "guess" ||
+          (room.phase === "clue" && round?.psychic_id === myPlayerId)) && (
         <div className="mb-5 rounded-2xl border-2 border-violet bg-card/60 p-4">
-          <PlayerPanel room={room} players={players} subs={subs} playerId={myPlayerId} />
+          <PlayerPanel room={room} players={players} subs={subs} playerId={myPlayerId} conceal />
         </div>
       )}
 
@@ -364,7 +371,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
           <p className="text-center text-sm text-fog">
             The green line is where {round.psychic_name} was pointing ({phaseData.target}).
           </p>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={myPlayerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next psychic"}
           </BigBtn>
@@ -375,7 +382,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={myPlayerId} />
           </div>
           <Link href="/vibe/host" className="underline text-fog">
             Play again with a new room

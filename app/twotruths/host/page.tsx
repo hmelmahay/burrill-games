@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, BigBtn } from "@/app/components/ui";
-import { createRoom, hostKey } from "@/lib/rooms";
+import { createRoom, hostKey, seatCreator } from "@/lib/rooms";
 
 export default function TTHostSetup() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [cycles, setCycles] = useState(1);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -21,7 +22,12 @@ export default function TTHostSetup() {
       setBusy(false);
       return;
     }
-    localStorage.setItem(hostKey(room.code), "true");
+    try {
+      localStorage.setItem(hostKey(room.code), "true");
+    } catch {}
+    // Creating a room shouldn't lock you out of your own game: if you gave a
+    // name, you're seated as a player and the host screen shows your controls.
+    await seatCreator("twotruths", room.code, name);
     router.push(`/twotruths/host/${room.code}`);
   }
 
@@ -33,6 +39,20 @@ export default function TTHostSetup() {
           Each round one player writes two truths and one lie about themselves.
           Everyone else sniffs out the lie. No question bank — your friends are the content.
         </p>
+        <label className="flex flex-col gap-1">
+          <span className="font-semibold">Your name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Playing too? Enter your name"
+            maxLength={20}
+            autoComplete="off"
+            className="rounded-lg border border-line bg-card px-3 py-2"
+          />
+          <span className="text-fog text-xs">
+            Leave blank to run this screen as a scoreboard only.
+          </span>
+        </label>
         <label className="flex items-center justify-between gap-3">
           <span className="font-semibold">Turns per player</span>
           <select

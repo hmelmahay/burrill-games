@@ -11,10 +11,14 @@ import {
   Countdown,
   Leaderboard,
   PlayerChips,
+  HostSeatCard,
+  PeekGuard,
 } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
 import { guessMatches } from "@/lib/matching";
+import { useHostSeat } from "@/lib/useHostSeat";
 import { DoodleCanvas } from "@/app/doodle/DoodleCanvas";
+import { WordPicker, GuessBox } from "@/app/doodle/PlayerControls";
 import WORDS from "@/lib/content/doodle-words.json";
 import {
   GUESS_POINTS,
@@ -29,8 +33,9 @@ type WordEntry = { w: string; d: string };
 
 export default function DoodleHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("doodle", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("doodle", code);
   const { tvRef } = useSpectator();
+  const seat = useHostSeat("doodle", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
   const correctOrderRef = useRef<string[]>([]);
@@ -99,10 +104,14 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
     if (advancingRef.current === key) return;
     advancingRef.current = key;
     correctOrderRef.current = [];
+    // Only for the round this pick belongs to: if a Skip already moved the room
+    // on, this must not drop the next round into "draw" with no word.
     supabase
       .from("arcade_rooms")
       .update({ phase: "draw" })
       .eq("id", room.id)
+      .eq("round_idx", room.round_idx)
+      .eq("phase", "pick")
       .then(({ error: e }) => {
         if (e) console.error("open drawing failed:", e.message);
       });
@@ -187,12 +196,17 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
 
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  // A seated host draws on this screen's canvas on their turn and guesses on
+  // everyone else's.
+  const hostDraws = seat.canPlay && round?.drawer_id === seat.playerId;
+  const hostGuesses = seat.canPlay && !!seat.playerId && !hostDraws;
 
   return (
     <Shell title="Doodle Dash · host" icon="🎨">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="doodle" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Doodle Dash → Join, with the code.
           </p>
@@ -208,7 +222,21 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
         </div>
       )}
 
-      {room.phase === "pick" && round && (
+      {room.phase === "pick" && round && hostDraws && seat.playerId && (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-fog text-center">
+            Round {room.round_idx + 1}/{rounds.length}
+          </p>
+          <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+            <WordPicker room={room} playerId={seat.playerId} conceal />
+          </div>
+          <BigBtn onClick={next} disabled={busy} color="ghost">
+            Skip my turn
+          </BigBtn>
+        </div>
+      )}
+
+      {room.phase === "pick" && round && !hostDraws && (
         <div className="flex flex-col gap-4 items-center py-10">
           <p className="text-sm text-fog">
             Round {room.round_idx + 1}/{rounds.length}
@@ -234,7 +262,17 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
             </span>
           </div>
           <Countdown left={left} total={drawSeconds} />
-          <DoodleCanvas code={code} roundIdx={room.round_idx} canDraw={false} />
+          {hostDraws && (
+            <PeekGuard key={room.round_idx} label="Tap to see your word">
+              <div className="rounded-xl bg-violet/20 border border-violet p-3 text-center font-bold">
+                Draw: <span className="uppercase tracking-wide">{word}</span>
+              </div>
+            </PeekGuard>
+          )}
+          <DoodleCanvas code={code} roundIdx={room.round_idx} canDraw={hostDraws} />
+          {hostGuesses && seat.playerId && (
+            <GuessBox room={room} subs={subs} playerId={seat.playerId} word={word} conceal />
+          )}
           <div className="flex flex-wrap gap-1.5">
             {guessers.map((p) => (
               <span
@@ -264,7 +302,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
               {phaseData.word}
             </div>
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next artist"}
           </BigBtn>
@@ -275,7 +313,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <a href="/doodle/host" className="underline text-fog">
             Play again with a new room
