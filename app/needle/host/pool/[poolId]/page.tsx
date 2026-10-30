@@ -7,6 +7,7 @@ import { supabase, Pool, Song, Pattern, Difficulty } from "@/lib/needle/types";
 import { parseBulkSongs, parseYoutubeId, generateCode, shuffle } from "@/lib/needle/parsers";
 import { generateCard } from "@/lib/needle/bingo";
 import { DifficultyInfo } from "@/app/needle/DifficultyInfo";
+import { Marquee } from "@/app/components/brand";
 
 type ITunesHit = {
   trackId: number;
@@ -298,7 +299,7 @@ export default function PoolEditor({
         </Link>
         <span className="text-sm text-zinc-500">{songs.length} songs</span>
       </div>
-      <h1 className="text-3xl font-bold">{pool?.name ?? "…"}</h1>
+      <Marquee icon="🎵" title={pool?.name ?? "…"} size="lg" className="self-start" />
 
       <section className="flex flex-col gap-2 rounded-2xl border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/30 p-4">
         <h2 className="font-semibold">🔎 Search songs (no links needed)</h2>

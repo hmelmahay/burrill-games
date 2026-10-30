@@ -6,10 +6,17 @@ import { supabase, MajorityRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { PlayerDot } from "@/app/components/brand";
+import { stagger } from "@/lib/fx";
+import { useStaged } from "@/lib/motion";
 import { addBot, removeBot, humansOf, botsOf, botSkill, crowdBias, botBinaryVote, botPredict } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/majority/PlayerPanel";
+import { SplitBar } from "@/app/majority/SplitBar";
+import { REVEAL } from "@/app/majority/reveal";
 import {
   PREDICT_POINTS,
   TIE_POINTS,
@@ -22,6 +29,8 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
   const { room, players, subs, error, refresh, playersLoaded } = useRoom("majority", code);
   const { tvRef } = useSpectator();
   const seat = useHostSeat("majority", code, players, refresh, playersLoaded);
+  // Visual only: should this screen play the staged reveal for the current phase?
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -144,9 +153,41 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
   const totalVotes = (phaseData.aCount ?? 0) + (phaseData.bCount ?? 0);
   const aPct = totalVotes ? Math.round(((phaseData.aCount ?? 0) / totalVotes) * 100) : 0;
+  const bPct = totalVotes ? 100 - aPct : 0;
+  const canStart = players.length >= 2 && humansOf(players).length >= 1;
+  const votes = (n: number) => `${n} vote${n === 1 ? "" : "s"}`;
+  const votersFor = (side: "a" | "b") => (phaseData.results ?? []).filter((r) => r.vote === side);
+  // Dots under each side of the split bar: who voted which way.
+  const voterDots = (side: "a" | "b") => {
+    const list = votersFor(side);
+    return (
+      <div className={`flex min-w-0 flex-1 flex-wrap gap-1 ${side === "b" ? "justify-end" : ""}`}>
+        {list.map((r, i) => (
+          <Reveal
+            key={r.player_id}
+            as="span"
+            kind="pop"
+            delayMs={REVEAL.voters + stagger(i, list.length, 50, 500)}
+            className="inline-flex"
+          >
+            <PlayerDot id={r.player_id} name={r.name} size="lg" />
+          </Reveal>
+        ))}
+        {list.length > 0 && (
+          <span className="sr-only">
+            Voted {side === "a" ? round?.a : round?.b}: {list.map((r) => r.name).join(", ")}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <Shell title="Majority Rules · host" icon="🐑">
+    <Shell
+      title="Majority Rules · host"
+      icon="🐑"
+      attractKey={room.phase === "lobby" ? players.length : undefined}
+    >
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -178,6 +219,7 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
           <BigBtn
             onClick={startGame}
             disabled={busy || players.length < 2 || humansOf(players).length < 1}
+            attention={canStart}
           >
             {players.length < 2
               ? "Need at least 2 players (bots count)…"
@@ -189,80 +231,110 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
       )}
 
       {room.phase === "vote" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds} · {answered.length}/{players.length} voted
-          </p>
-          {seat.canPlay && seat.playerId ? (
-            <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
-              <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
-            </div>
-          ) : (
-            <>
-              <h1 className="text-2xl font-extrabold text-center">Which one, room?</h1>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="rounded-xl bg-glow text-[#1a1000] p-5 text-center font-bold text-xl">
-                  {round.a}
-                </div>
-                <div className="text-center text-fog font-bold">vs</div>
-                <div className="rounded-xl bg-violet text-white p-5 text-center font-bold text-xl">
-                  {round.b}
-                </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{totalRounds}
+            </p>
+            {seat.canPlay && seat.playerId ? (
+              <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+                <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
               </div>
-              <p className="text-fog text-sm text-center">
-                Everyone votes on their phone and predicts the majority.
-              </p>
-            </>
-          )}
-          <BigBtn onClick={reveal} disabled={busy || answered.length === 0} color="ghost">
-            Reveal now ({answered.length} in)
-          </BigBtn>
-        </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-extrabold text-center">Which one, room?</h1>
+                {/* Majority isn't timed, so the cards can take a beat to land. */}
+                <div className="grid grid-cols-1 gap-3">
+                  <Reveal kind="rise" className="rounded-xl bg-glow text-[#1a1000] p-5 text-center font-bold text-xl">
+                    {round.a}
+                  </Reveal>
+                  <div className="text-center">
+                    <Stamp tone="gold" delayMs={240}>
+                      VS
+                    </Stamp>
+                  </div>
+                  <Reveal
+                    kind="rise"
+                    delayMs={120}
+                    className="rounded-xl bg-violet text-white p-5 text-center font-bold text-xl"
+                  >
+                    {round.b}
+                  </Reveal>
+                </div>
+                <p className="text-fog text-sm text-center">
+                  Everyone votes on their phone and predicts the majority.
+                </p>
+              </>
+            )}
+            <LockInRow players={players} doneIds={answered.map((s) => s.player_id)} label="voted" />
+            <BigBtn onClick={reveal} disabled={busy || answered.length === 0} color="ghost">
+              Reveal now ({answered.length} in)
+            </BigBtn>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds}
-          </p>
-          <div className="rounded-2xl bg-card border border-line p-4 flex flex-col gap-2">
-            <div className="flex justify-between font-bold">
-              <span className="text-glow">{round.a}</span>
-              <span className="text-violet">{round.b}</span>
-            </div>
-            <div className="h-6 rounded-full overflow-hidden flex bg-line">
-              <div className="bg-glow h-full transition-all" style={{ width: `${aPct}%` }} />
-              <div className="bg-violet h-full flex-1" />
-            </div>
-            <div className="flex justify-between text-sm text-fog">
-              <span>
-                {phaseData.aCount ?? 0} votes ({aPct}%)
-              </span>
-              <span>{phaseData.bCount ?? 0} votes</span>
-            </div>
-            <p className="text-center font-extrabold text-xl mt-1">
-              {phaseData.majority === "tie"
-                ? "🤝 Dead tie! Everyone scores."
-                : `Majority: ${phaseData.majority === "a" ? round.a : round.b}`}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{totalRounds}
             </p>
+            <div className="neon-panel p-4 flex flex-col gap-3">
+              <div className="flex justify-between gap-3 font-bold">
+                <span className="min-w-0 break-words text-glow">{round.a}</span>
+                <span className="min-w-0 break-words text-right text-[#a78bfa]">{round.b}</span>
+              </div>
+              <SplitBar aCount={phaseData.aCount ?? 0} bCount={phaseData.bCount ?? 0} />
+              <Reveal kind="fade" delayMs={REVEAL.verdict} className="flex justify-between gap-3 text-sm text-fog">
+                <span>
+                  {votes(phaseData.aCount ?? 0)} · {aPct}%
+                </span>
+                <span className="text-right">
+                  {votes(phaseData.bCount ?? 0)} · {bPct}%
+                </span>
+              </Reveal>
+              <div className="flex justify-between gap-3">
+                {voterDots("a")}
+                {voterDots("b")}
+              </div>
+              {/* pt-3 and pb-3: a long stamp wraps to full width, and its -4deg
+                  tilt lifts one corner and drops the other about 21px past its
+                  box, into the voter dots above and the panel's border below. */}
+              <div className="flex flex-col items-center gap-1 pt-3 pb-3">
+                <Stamp
+                  size="lg"
+                  tone={phaseData.majority === "tie" ? "gold" : phaseData.majority === "a" ? "glow" : "violet"}
+                  delayMs={REVEAL.verdict}
+                  className="max-w-full whitespace-normal text-center"
+                >
+                  {phaseData.majority === "tie"
+                    ? "Dead tie"
+                    : `Majority: ${phaseData.majority === "a" ? round.a : round.b}`}
+                </Stamp>
+                {phaseData.majority === "tie" && (
+                  <Reveal as="p" kind="fade" delayMs={REVEAL.verdict} className="text-fog text-sm">
+                    Everybody who voted scores.
+                  </Reveal>
+                )}
+              </div>
+            </div>
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
+            </BigBtn>
           </div>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <Link href="/majority/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+          <Link href="/majority/host" className="tv-hide underline text-fog">
             Play again with a new room
           </Link>
-        </div>
+        </FinalStandings>
       )}
     </Shell>
   );

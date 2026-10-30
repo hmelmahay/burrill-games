@@ -15,6 +15,8 @@ import {
   PlayerChips,
   HostSeatCard,
 } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
@@ -24,15 +26,22 @@ import {
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
+import { RELOAD_HOLD, REVEAL, fastestCorrect } from "@/app/quiz/reveal";
+import { useStaged } from "@/lib/motion";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizPick, botBlindChoice, botQuizDelayMs } from "@/lib/bots";
 import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
 
+// The tile's bottom lip, as a literal inline shadow (TV-safe).
+const LIP = "inset 0 -5px 0 rgba(0,0,0,.25)";
+
 export default function QuizHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error, refresh, playersLoaded } = useRoom("quiz", code);
   const { tvRef } = useSpectator();
+  // Display only: play the reveal and podium on screens that saw them start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at, RELOAD_HOLD);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -296,9 +305,12 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
 
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  const counts = phaseData.counts ?? [];
+  const maxCount = Math.max(1, ...counts);
+  const fastest = fastestCorrect(phaseData.results);
 
   return (
-    <Shell title="Quiz Rush · host" icon="⚡">
+    <Shell title="Quiz Rush · host" icon="⚡" attractKey={room.phase === "lobby" ? players.length : undefined}>
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -330,6 +342,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
           <BigBtn
             onClick={startGame}
             disabled={busy || players.length < 1 || humansOf(players).length < 1}
+            attention={players.length >= 1 && humansOf(players).length >= 1}
           >
             {humansOf(players).length < 1
               ? "Waiting for a human…"
@@ -340,14 +353,10 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
 
       {room.phase === "question" && round && (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-sm text-fog">
-            <span>
-              Question {room.round_idx + 1}/{totalQuestions} · {round.cat}
-            </span>
-            <span>
-              {answeredCount}/{players.length} answered
-            </span>
-          </div>
+          {/* The answered count lives in the LockInRow under the tiles. */}
+          <p className="text-sm text-fog">
+            Question {room.round_idx + 1}/{totalQuestions} · {round.cat}
+          </p>
           <Countdown left={left} total={answerSeconds} />
           <h1 className="text-2xl font-extrabold text-center py-4">{round.q}</h1>
           <div className="grid grid-cols-2 gap-2">
@@ -355,12 +364,12 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
               const dead = settings.hints
                 ? eliminatedChoices(room.round_idx, round.answer, left, answerSeconds).includes(i)
                 : false;
-              const tile = `rounded-xl p-4 font-bold text-white text-center ${
-                dead ? "opacity-30 line-through" : ""
+              const tile = `relative rounded-xl p-4 font-bold text-white text-center ${
+                dead ? "opacity-30 line-through transition-opacity duration-500" : ""
               }`;
               if (!canPlay)
                 return (
-                  <div key={i} className={tile} style={{ background: CHOICE_COLORS[i] }}>
+                  <div key={i} className={tile} style={{ background: CHOICE_COLORS[i], boxShadow: LIP }}>
                     {CHOICE_LETTERS[i]} · {c}
                   </div>
                 );
@@ -381,14 +390,14 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
                     left === 0 ||
                     (chosen != null && !settings.allowChange)
                   }
-                  className={`${tile} active:scale-[0.98] transition ${
-                    selected
-                      ? "ring-4 ring-white"
-                      : chosen != null
-                        ? "opacity-60"
-                        : ""
-                  }`}
-                  style={{ background: CHOICE_COLORS[i] }}
+                  // A struck tile keeps its own dimmer opacity after a pick.
+                  className={`${tile} press ${chosen != null && !selected && !dead ? "opacity-60" : ""}`}
+                  // The selection ring rides in the same inline shadow as the
+                  // lip: a ring-* class would lose to the inline style.
+                  style={{
+                    background: CHOICE_COLORS[i],
+                    boxShadow: selected ? `${LIP}, 0 0 0 4px #ffffff` : LIP,
+                  }}
                 >
                   {CHOICE_LETTERS[i]} · {c}
                 </button>
@@ -404,6 +413,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
                   : `Locked in as ${me!.name}. Waiting for everyone…`}
             </p>
           )}
+          <LockInRow players={players} doneIds={roundSubs.map((s) => s.player_id)} label="answered" />
           {botsReady && !botAnswer && botsOf(players).length > 0 && (
             <p className="text-lose text-center text-xs">
               Bots are answering at random — the answer service is unavailable.
@@ -422,61 +432,92 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Question {room.round_idx + 1}/{totalQuestions}
-          </p>
-          <h1 className="text-xl font-extrabold text-center">{round.q}</h1>
-          <div className="grid grid-cols-2 gap-2">
-            {round.choices.map((c, i) => (
-              <div
-                key={i}
-                className={`rounded-xl p-4 font-bold text-white text-center ${
-                  i === round.answer ? "ring-4 ring-win" : "opacity-40"
-                }`}
-                style={{ background: CHOICE_COLORS[i] }}
-              >
-                {CHOICE_LETTERS[i]} · {c}
-                <span className="block text-sm font-normal">
-                  {(phaseData.counts ?? [])[i] ?? 0} votes
-                </span>
-              </div>
-            ))}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Question {room.round_idx + 1}/{totalQuestions}
+            </p>
+            <h1 className="text-xl font-extrabold text-center">{round.q}</h1>
+            <div className="grid grid-cols-2 gap-2">
+              {round.choices.map((c, i) => {
+                const n = counts[i] ?? 0;
+                const right = i === round.answer;
+                return (
+                  <div
+                    key={i}
+                    className={`relative rounded-xl p-4 font-bold text-white text-center ${right ? "" : "opacity-40"}`}
+                    style={{ background: CHOICE_COLORS[i], boxShadow: LIP }}
+                  >
+                    {/* The ring rests lit.  It flickers on only on a screen
+                        that watched the reveal start, so a late TV copy or a
+                        refreshed host shows it steady. */}
+                    {right && (
+                      <span aria-hidden className={staged ? "tile-correct fx-neon-on" : "tile-correct"} />
+                    )}
+                    {right && (
+                      <Stamp tone="win" size="sm" className="absolute -top-3 -right-2">
+                        ✓
+                      </Stamp>
+                    )}
+                    {CHOICE_LETTERS[i]} · {c}
+                    <span className="block text-sm font-normal">
+                      {n} {n === 1 ? "vote" : "votes"}
+                    </span>
+                    <div className="vote-track mt-2">
+                      <Reveal
+                        kind="bar-x"
+                        delayMs={REVEAL.bars + i * 60}
+                        className="vote-fill"
+                        style={{ width: `${(n / maxCount) * 100}%`, background: "rgba(255,255,255,.85)" }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <Reveal kind="fade" delayMs={REVEAL.fastest}>
+              {fastest ? (
+                <p className="text-center text-lg font-bold">
+                  ⚡ <Stamp tone="gold">Fastest</Stamp> {fastest.name}{" "}
+                  <span className="text-win">+{fastest.gained.toLocaleString()}</span>
+                </p>
+              ) : (
+                <p className="text-center text-lg text-fog">😱 Nobody got it!</p>
+              )}
+            </Reveal>
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={playerId} />
+            </Reveal>
+            {nextSeconds > 0 && (
+              <MiniTimer
+                left={nextLeft}
+                total={nextSeconds}
+                label={
+                  room.round_idx + 1 >= totalQuestions
+                    ? "Final standings in"
+                    : "Next question in"
+                }
+              />
+            )}
+            <BigBtn onClick={next} disabled={busy} color={nextSeconds > 0 ? "ghost" : "glow"}>
+              {room.round_idx + 1 >= totalQuestions
+                ? nextSeconds > 0
+                  ? "Finish now"
+                  : "Finish game"
+                : nextSeconds > 0
+                  ? "Next now"
+                  : "Next question"}
+            </BigBtn>
           </div>
-          <Leaderboard players={players} gains={gains} highlightId={playerId} />
-          {nextSeconds > 0 && (
-            <MiniTimer
-              left={nextLeft}
-              total={nextSeconds}
-              label={
-                room.round_idx + 1 >= totalQuestions
-                  ? "Final standings in"
-                  : "Next question in"
-              }
-            />
-          )}
-          <BigBtn onClick={next} disabled={busy} color={nextSeconds > 0 ? "ghost" : "glow"}>
-            {room.round_idx + 1 >= totalQuestions
-              ? nextSeconds > 0
-                ? "Finish now"
-                : "Finish game"
-              : nextSeconds > 0
-                ? "Next now"
-                : "Next question"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
-          <Link href="/quiz/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={playerId} size="host" staged={staged}>
+          <Link href="/quiz/host" className="tv-hide underline text-fog">
             Play again with a new room
           </Link>
-        </div>
+        </FinalStandings>
       )}
     </Shell>
   );

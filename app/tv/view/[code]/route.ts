@@ -93,6 +93,7 @@ try {
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="${REFRESH_SECONDS}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>${esc(gameName)} — scoreboard</title>
 <style>
   body { background: #0d1026; color: #f2f3ff; margin: 0; padding: 40px 20px;
@@ -102,10 +103,11 @@ try {
   h1 { font-size: 44px; margin: 18px 0 6px 0; }
   .status { color: #9aa0c8; font-size: 26px; margin: 0 0 26px 0; }
   .codebox { border: 2px solid #ff9f1c; background: #171b3a; border-radius: 16px;
-             display: inline-block; padding: 14px 40px; margin-bottom: 30px; }
+             display: inline-block; padding: 14px 40px; margin-bottom: 30px;
+             box-shadow: 0 0 24px rgba(255,159,28,.35); }
   .codelabel { color: #9aa0c8; font-size: 16px; letter-spacing: 5px; }
   .code { color: #ff9f1c; font-family: 'Courier New', monospace; font-weight: bold;
-          font-size: 84px; letter-spacing: 14px; }
+          font-size: 84px; letter-spacing: 14px; text-shadow: 0 0 12px rgba(255,159,28,.6); }
   table { margin: 0 auto; border-collapse: collapse; width: 90%; max-width: 700px; }
   td { border-bottom: 1px solid #2a3060; padding: 12px 16px; font-size: 34px; }
   .rank { color: #9aa0c8; width: 60px; }

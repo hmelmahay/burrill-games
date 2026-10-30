@@ -4,10 +4,14 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
+import { LobbyWait, ResultCard, Reveal, RevealScope } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import { playerKey } from "@/lib/rooms";
+import { useStaged } from "@/lib/motion";
 import { DoodleCanvas } from "@/app/doodle/DoodleCanvas";
 import { WordPicker, GuessBox } from "@/app/doodle/PlayerControls";
 import { DoodleRound, DoodlePhaseData } from "@/app/doodle/constants";
+import { REVEAL, firstGuesser } from "@/app/doodle/reveal";
 
 export default function DoodlePlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -34,6 +38,9 @@ export default function DoodlePlay({ params }: { params: Promise<{ code: string 
     drawSeconds,
     room?.phase === "draw",
   );
+  // Staged off the same REVEAL beats as the host screen (the card and board
+  // wait for the host's payoff); a refreshed phone gets the final state.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   if (error)
     return (
@@ -56,17 +63,13 @@ export default function DoodlePlay({ params }: { params: Promise<{ code: string 
     );
 
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
+  const first = firstGuesser(phaseData.results ?? []);
+  const gains: Record<string, number> = {};
+  (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
 
   return (
     <Shell title={`Doodle Dash · ${me.name}`} icon="🎨">
-      {room.phase === "lobby" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">🎉</p>
-          <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
-          <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
+      {room.phase === "lobby" && <LobbyWait me={me} players={players} />}
 
       {room.phase === "pick" && round && isDrawer && playerId && (
         <WordPicker room={room} playerId={playerId} />
@@ -80,15 +83,20 @@ export default function DoodlePlay({ params }: { params: Promise<{ code: string 
         </div>
       )}
 
+      {/* no-enter: nothing above the canvas may carry a transform, or strokes
+          land off the finger while it plays. */}
       {room.phase === "draw" && round && (
-        <div className="flex flex-col gap-3">
+        <div className="no-enter flex flex-col gap-3">
           <Countdown left={left} total={drawSeconds} />
           {isDrawer && (
             <div className="rounded-xl bg-violet/20 border border-violet p-3 text-center font-bold">
               Draw: <span className="uppercase tracking-wide">{word}</span>
             </div>
           )}
-          <DoodleCanvas code={code} roundIdx={room.round_idx} canDraw={isDrawer} />
+          {/* A still frame only: never animate the canvas or its parents. */}
+          <div className="neon-panel p-2">
+            <DoodleCanvas code={code} roundIdx={room.round_idx} canDraw={isDrawer} />
+          </div>
           {!isDrawer && playerId && (
             <GuessBox room={room} subs={subs} playerId={playerId} word={word} />
           )}
@@ -96,39 +104,43 @@ export default function DoodlePlay({ params }: { params: Promise<{ code: string 
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl bg-card border-2 border-win p-4 text-center">
-            <div className="text-fog text-sm">It was</div>
-            <div className="text-2xl font-extrabold uppercase">{phaseData.word}</div>
-          </div>
-          {myResult && (
-            <div
-              className={`rounded-2xl p-5 text-center pop-in ${
-                myResult.gained > 0 ? "bg-win text-[#03180b]" : "bg-card border border-line"
-              }`}
-            >
-              <div className="text-3xl font-extrabold">+{myResult.gained}</div>
-              <div className="text-sm">
-                {myResult.isDrawer
-                  ? "Artist royalties"
-                  : myResult.correct
-                    ? "Nice eye!"
-                    : "It was right there…"}
-              </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <div className="neon-panel p-4 text-center">
+              <div className="text-fog text-sm">It was</div>
+              <Reveal
+                kind="neon-on"
+                delayMs={REVEAL.word}
+                className="font-display mt-1 text-2xl uppercase break-words"
+              >
+                {phaseData.word}
+              </Reveal>
             </div>
-          )}
-          <Leaderboard players={players} highlightId={playerId} />
-          <p className="text-fog text-sm text-center">Waiting for the host…</p>
-        </div>
+            {myResult && (
+              <ResultCard
+                tone={myResult.gained > 0 ? "win" : "neutral"}
+                points={myResult.gained}
+                title={
+                  myResult.isDrawer
+                    ? "Artist royalties"
+                    : myResult.correct
+                      ? "Nice eye!"
+                      : "It was right there…"
+                }
+                celebrate={!!first && first.player_id === playerId}
+                delayMs={REVEAL.card}
+              />
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
+              <Leaderboard players={players} highlightId={playerId} gains={gains} />
+            </Reveal>
+            <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-4 items-center">
-          <h1 className="text-3xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
-        </div>
+        <FinalStandings players={players} highlightId={playerId} size="phone" staged={staged} />
       )}
     </Shell>
   );

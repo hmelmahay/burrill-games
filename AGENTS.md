@@ -16,6 +16,9 @@ Twelve party games in one Next.js + Supabase app, deployed at **burrill-games.ve
 | `lib/useHostSeat.ts` | Seats whoever runs the host screen as a player (setup-page name or the lobby card).  `canPlay` is never true on a `?tv=1` copy |
 | `app/<game>/PlayerPanel.tsx` | One player's controls, rendered by both the phone view and the host screen |
 | `app/components/ui.tsx` | Shared chrome — `Shell`, `CodeBadge`, `HostSeatCard`, `Leaderboard`, `PlayerChips`, `BigBtn` |
+| `app/components/fx.tsx`, `FinalStandings.tsx`, `Confetti.tsx` | The arcade look's moving parts:  `RevealScope`/`Reveal` staging, `Stamp`, `RollingNumber`, `ResultCard`, `Drumroll`, the podium and confetti |
+| `lib/motion.ts`, `lib/fx.ts` | `useStaged` (play a reveal or show it final), FLIP slides and settled board order, shared timings |
+| `app/<game>/reveal.ts` | That game's reveal beats in ms, read by both the host and the phone |
 
 All state lives in three Supabase tables — `arcade_rooms`, `arcade_players`, `arcade_subs` — so a refresh or a server restart never loses a game.
 
@@ -78,5 +81,7 @@ CI (`.github/workflows/ci.yml`) runs `npm test` and `npm run build` on every PR 
 - **Verify in a browser before merging.** Unit tests can't see effect lifecycles: a Quiz Rush round shipped-but-for-one-check ended 2/3 answered because every submission cancelled and rescheduled the other bots' timers. Only playing it found that.
 - Pre-existing lint errors (~49, mostly `setState`-in-effect in `useRoom.ts`) are not yours. Compare against the base branch before blaming a change.
 - **The host plays on the host screen.**  A host who has to join again from a second phone or tab is a bug.  Every game seats the person running the host screen through `useHostSeat`: a name on the setup page, or the lobby's "Playing too?" card (`HostSeatCard`) if they skipped it.  A player's controls live in one component that both the phone view and the host screen render, usually `app/<game>/PlayerPanel.tsx`.  Doodle Dash uses `PlayerControls.tsx` around its single shared canvas, and Needle Drop uses `BingoCard.tsx` plus a "Get a card" seat that hides song titles until the host taps Show titles.  New games must follow the same pattern.  Leave the name blank for a scoreboard-only screen (right for a TV).
+- **Reveals are staged, and nobody gets spoiled.**  Each phase block sits in `RevealScope staged={useStaged(...)}`, and every timed piece reads its beat from `app/<game>/reveal.ts`.  A screen that saw the phase change plays it.  A refreshed tab or a late TV shows the final state at once and never replays.  Each screen times its reveal from its own network arrival, so a phone's own result card lands at least 250ms after the host's payoff beat.  Reduced motion keeps every beat and drops only the movement.
+- **TV-safe markup.**  Host pages, the quiz stage and shared reveal pieces show up on smart TVs with old browser engines.  On those screens use the classes in `globals.css` or inline styles, not Tailwind shadow, ring, transform, filter, gradient or inset utilities.  No endless animations:  short loops carry `.attract` so `.tv-mode` and `.calm` can stop them.  Writing all four of top/right/bottom/left in one CSS rule compiles back into `inset`, so use top, left, width and height.
 - Supabase error `23505` is a duplicate submission — expected under races, swallow it rather than retrying.
 - `arcade_subs` is keyed per round; always filter by `round_idx` before reading a player's answer.

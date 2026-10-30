@@ -5,7 +5,11 @@ import Link from "next/link";
 import { supabase, QuizRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown, MiniTimer } from "@/app/components/ui";
+import { LobbyWait, ResultCard, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { Confetti } from "@/app/components/Confetti";
 import { playerKey } from "@/lib/rooms";
+import { useStaged } from "@/lib/motion";
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
@@ -13,10 +17,13 @@ import {
   QuizSettings,
   QuizPhaseData,
 } from "@/app/quiz/constants";
+import { RELOAD_HOLD, REVEAL, fastestCorrect } from "@/app/quiz/reveal";
 
 export default function QuizPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("quiz", code);
+  // Display only: play the reveal and podium on screens that saw them start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at, RELOAD_HOLD);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
 
@@ -47,9 +54,8 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
     nextSeconds,
     room?.phase === "reveal" && nextSeconds > 0,
   );
-  const isLast = room
-    ? room.round_idx + 1 >= Math.min(settings.numQuestions ?? 10, room.rounds.length)
-    : false;
+  const totalQuestions = room ? Math.min(settings.numQuestions ?? 10, room.rounds.length) : 0;
+  const isLast = room ? room.round_idx + 1 >= totalQuestions : false;
 
   // Reset local pick each new round.
   useEffect(() => {
@@ -106,21 +112,22 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
 
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
   const chosen = picked ?? (mySub?.payload.choice as number | undefined) ?? null;
+  const gains: Record<string, number> = {};
+  (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  const iWasFastest = fastestCorrect(phaseData.results)?.player_id === playerId;
 
   return (
     <Shell title={`Quiz Rush · ${me.name}`} icon="⚡">
-      {room.phase === "lobby" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">🎉</p>
-          <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
-          <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
+      {room.phase === "lobby" && <LobbyWait me={me} players={players} />}
 
       {room.phase === "question" && round && (
         <div className="flex flex-col gap-4 flex-1">
-          <Countdown left={left} total={answerSeconds} />
+          <div className="flex flex-col gap-1.5">
+            <p className="text-sm text-fog">
+              Question {room.round_idx + 1}/{totalQuestions}
+            </p>
+            <Countdown left={left} total={answerSeconds} />
+          </div>
           <h1 className="text-xl font-extrabold text-center">{round.q}</h1>
           {left > 0 && (chosen == null || allowChange) ? (
             <div className="flex flex-col gap-2">
@@ -134,9 +141,9 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
                     key={i}
                     onClick={() => (chosen == null ? answer(i) : switchTo(i))}
                     disabled={dead || switching}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-white active:scale-[0.98] transition ${
-                      dead ? "opacity-35 line-through" : ""
-                    } ${selected ? "ring-4 ring-white" : chosen != null ? "opacity-70" : ""}`}
+                    className={`press flex items-center gap-3 rounded-xl px-3 py-3 text-left text-white ${
+                      dead ? "opacity-35 line-through transition-opacity duration-500" : ""
+                    } ${selected ? "ring-4 ring-white" : chosen != null && !dead ? "opacity-70" : ""}`}
                     style={{ background: CHOICE_COLORS[i] }}
                   >
                     <span className="w-9 h-9 shrink-0 rounded-lg bg-black/25 flex items-center justify-center text-lg font-extrabold">
@@ -153,16 +160,17 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
               )}
             </div>
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2">
+            <div className="flex flex-1 flex-col items-center justify-center gap-3">
               {chosen != null ? (
                 <>
+                  <Stamp tone="violet">Locked in</Stamp>
                   <div
                     className="rounded-xl px-6 py-4 font-bold text-white text-xl"
                     style={{ background: CHOICE_COLORS[chosen] }}
                   >
                     {CHOICE_LETTERS[chosen]} · {round.choices[chosen]}
                   </div>
-                  <p className="text-fog">Locked in! Waiting for everyone…</p>
+                  <p className="text-fog">Waiting for everyone…</p>
                 </>
               ) : (
                 <p className="text-fog text-xl">⏰ Time&apos;s up!</p>
@@ -173,48 +181,46 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          {myResult && (
-            <div
-              className={`rounded-2xl p-6 text-center pop-in ${
-                myResult.correct ? "bg-win text-[#03180b]" : "bg-lose text-white"
-              }`}
-            >
-              <div className="text-3xl font-extrabold">
-                {myResult.correct ? `+${myResult.gained}` : "✗"}
-              </div>
-              <div className="font-semibold">
-                {myResult.correct
-                  ? "Correct!"
-                  : myResult.choice == null
-                    ? "No answer"
-                    : "Wrong answer"}
-              </div>
-              <div className="text-sm mt-1 opacity-80">
-                Answer: {CHOICE_LETTERS[round.answer]} — {round.choices[round.answer]}
-              </div>
-            </div>
-          )}
-          <Leaderboard players={players} highlightId={playerId} />
-          {nextSeconds > 0 ? (
-            <MiniTimer
-              left={nextLeft}
-              total={nextSeconds}
-              label={isLast ? "Final standings in" : "Next question in"}
-            />
-          ) : (
-            <p className="text-fog text-sm text-center">Waiting for the host…</p>
-          )}
-        </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            {myResult && (
+              <ResultCard
+                delayMs={REVEAL.card}
+                tone={myResult.correct ? "win" : "lose"}
+                points={myResult.correct ? myResult.gained : undefined}
+                title={
+                  myResult.correct
+                    ? "Correct!"
+                    : myResult.choice == null
+                      ? "No answer"
+                      : "Wrong answer"
+                }
+              >
+                <div className="text-sm mt-1 opacity-80">
+                  Answer: {CHOICE_LETTERS[round.answer]} · {round.choices[round.answer]}
+                </div>
+              </ResultCard>
+            )}
+            {/* With the room's Fastest callout, not ahead of it. */}
+            {myResult?.correct && iWasFastest && <Confetti pieces={14} delayMs={REVEAL.fastest} />}
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} highlightId={playerId} gains={gains} />
+            </Reveal>
+            {nextSeconds > 0 ? (
+              <MiniTimer
+                left={nextLeft}
+                total={nextSeconds}
+                label={isLast ? "Final standings in" : "Next question in"}
+              />
+            ) : (
+              <p className="text-fog text-sm text-center">Waiting for the host…</p>
+            )}
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-4 items-center">
-          <h1 className="text-3xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
-        </div>
+        <FinalStandings players={players} highlightId={playerId} size="phone" staged={staged} />
       )}
     </Shell>
   );

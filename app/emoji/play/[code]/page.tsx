@@ -5,9 +5,14 @@ import Link from "next/link";
 import { EmojiRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
+import { LobbyWait, Reveal, RevealScope, ResultCard } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { useStaged } from "@/lib/motion";
 import { playerKey } from "@/lib/rooms";
 import { EmojiPhaseData } from "@/app/emoji/constants";
 import { PlayerPanel } from "@/app/emoji/PlayerPanel";
+import { NowShowing } from "@/app/emoji/NowShowing";
+import { REVEAL } from "@/app/emoji/reveal";
 
 export default function EmojiPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -29,6 +34,8 @@ export default function EmojiPlay({ params }: { params: Promise<{ code: string }
     guessSeconds,
     room?.phase === "guess",
   );
+  // A refreshed phone gets the final screen at once instead of a replay.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   if (error)
     return (
@@ -50,58 +57,65 @@ export default function EmojiPlay({ params }: { params: Promise<{ code: string }
       </Shell>
     );
 
-  const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
+  const results = phaseData.results ?? [];
+  const myResult = results.find((r) => r.player_id === playerId);
+  const gains: Record<string, number> = {};
+  results.forEach((r) => (gains[r.player_id] = r.gained));
+  // The first right answer scores the most (BASE_POINTS + SPEED_BONUS[0]), so
+  // the top score among right answers is the fastest.
+  const solvers = results
+    .filter((r) => r.correct)
+    .sort((a, b) => b.gained - a.gained)
+    .map((r) => r.player_id);
+  const myPlace = playerId ? solvers.indexOf(playerId) + 1 : 0;
 
   return (
     <Shell title={`Emoji Cinema · ${me.name}`} icon="🎬">
-      {room.phase === "lobby" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">🎉</p>
-          <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
-          <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
+      {room.phase === "lobby" && <LobbyWait me={me} players={players} />}
 
       {room.phase === "guess" && round && (
         <div className="flex flex-col gap-4">
           <Countdown left={left} total={guessSeconds} />
-          <div className="rounded-2xl bg-card border-2 border-violet p-6 text-center">
-            <div className="text-5xl leading-tight tracking-wider">{round.emoji}</div>
-            <div className="text-fog text-xs mt-2 uppercase tracking-widest">{round.kind}</div>
-          </div>
+          <NowShowing compact emoji={round.emoji} kind={round.kind} />
           {playerId && <PlayerPanel room={room} subs={subs} playerId={playerId} left={left} />}
         </div>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          {myResult && (
-            <div
-              className={`rounded-2xl p-6 text-center pop-in ${
-                myResult.correct ? "bg-win text-[#03180b]" : "bg-lose text-white"
-              }`}
-            >
-              <div className="text-3xl font-extrabold">
-                {myResult.correct ? `+${myResult.gained}` : "✗"}
-              </div>
-              <div className="font-semibold">
-                {round.emoji} = {round.answer}
-              </div>
-            </div>
-          )}
-          <Leaderboard players={players} highlightId={playerId} />
-          <p className="text-fog text-sm text-center">Waiting for the host…</p>
-        </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <NowShowing compact emoji={round.emoji} kind={round.kind} answer={round.answer} />
+            {myResult && (
+              <ResultCard
+                tone={myResult.correct ? "win" : "lose"}
+                points={myResult.correct ? myResult.gained : undefined}
+                title={
+                  myResult.correct
+                    ? myPlace === 1
+                      ? "Fastest right answer!"
+                      : "You got it!"
+                    : myResult.guess
+                      ? "Not this time"
+                      : "No guess in time"
+                }
+                celebrate={myResult.correct && myPlace === 1}
+                delayMs={REVEAL.phoneCard}
+              >
+                {!myResult.correct && myResult.guess && (
+                  <p className="text-sm mt-1 break-words">You guessed “{myResult.guess}”</p>
+                )}
+              </ResultCard>
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
+              <Leaderboard players={players} highlightId={playerId} gains={gains} />
+            </Reveal>
+            <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-4 items-center">
-          <h1 className="text-3xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
-        </div>
+        <FinalStandings players={players} highlightId={playerId} size="phone" staged={staged} />
       )}
     </Shell>
   );

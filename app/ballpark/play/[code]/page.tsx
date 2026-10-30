@@ -5,9 +5,14 @@ import Link from "next/link";
 import { BallparkRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { Shell, Leaderboard } from "@/app/components/ui";
+import { LobbyWait, Reveal, RevealScope, ResultCard, RollingNumber } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { useStaged } from "@/lib/motion";
 import { playerKey } from "@/lib/rooms";
 import { BallparkPhaseData } from "@/app/ballpark/constants";
 import { PlayerPanel } from "@/app/ballpark/PlayerPanel";
+import { EDGE_CLIP, REVEAL } from "@/app/ballpark/reveal";
+import { formatterFor } from "@/app/ballpark/format";
 
 export default function BallparkPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -17,6 +22,9 @@ export default function BallparkPlay({ params }: { params: Promise<{ code: strin
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
+
+  // Display only: play the reveal if this phone saw it start, else show the end state.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   const round = room ? (room.rounds[room.round_idx] as BallparkRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as BallparkPhaseData;
@@ -43,21 +51,18 @@ export default function BallparkPlay({ params }: { params: Promise<{ code: strin
     );
 
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
+  const gains: Record<string, number> = {};
+  (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  // Years print as 1903, not 1,903.
+  const fmt = formatterFor(round);
 
   return (
     <Shell title={`Ballpark · ${me.name}`} icon="🎯">
-      {room.phase === "lobby" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">🎉</p>
-          <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
-          <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
+      {room.phase === "lobby" && <LobbyWait me={me} players={players} />}
 
       {room.phase === "guess" && round && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-2xl bg-card border-2 border-violet p-5 text-center">
+          <div className="neon-panel p-5 text-center">
             <h1 className="text-xl font-extrabold">{round.q}</h1>
           </div>
           {playerId && <PlayerPanel room={room} subs={subs} playerId={playerId} />}
@@ -65,40 +70,49 @@ export default function BallparkPlay({ params }: { params: Promise<{ code: strin
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl bg-card border-2 border-win p-5 text-center">
-            <div className="text-fog text-sm">{round.q}</div>
-            <div className="text-3xl font-extrabold mt-1">
-              {round.answer.toLocaleString()} {round.unit}
-            </div>
-          </div>
-          {myResult && (
-            <div
-              className={`rounded-2xl p-5 text-center pop-in ${
-                myResult.gained >= 500 ? "bg-win text-[#03180b]" : "bg-card border border-line"
-              }`}
-            >
-              <div className="text-3xl font-extrabold">+{myResult.gained}</div>
-              <div className="text-sm mt-1">
-                {myResult.guess == null
-                  ? "No guess in time"
-                  : myResult.distance === 0
-                    ? "DEAD ON. Are you psychic?"
-                    : `You said ${myResult.guess.toLocaleString()} — off by ${myResult.distance!.toLocaleString()}`}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4" style={EDGE_CLIP}>
+            <div className="neon-panel p-5 text-center">
+              <div className="text-fog text-sm">{round.q}</div>
+              <div className="text-3xl font-extrabold mt-1">
+                {/* Same count-up as the host screen, ending as its flag lands. */}
+                <RollingNumber
+                  from={staged && Number.isInteger(round.answer) ? 0 : round.answer}
+                  value={round.answer}
+                  ms={REVEAL.flag}
+                  format={fmt}
+                  landAtEnd
+                />{" "}
+                {round.unit}
               </div>
             </div>
-          )}
-          <Leaderboard players={players} highlightId={playerId} />
-          <p className="text-fog text-sm text-center">Waiting for the host…</p>
-        </div>
+            {/* The card and the board wait past the host's flag (see reveal.ts). */}
+            {myResult && (
+              <ResultCard
+                tone={myResult.gained >= 500 ? "win" : "neutral"}
+                points={myResult.gained}
+                celebrate={myResult.distance === 0}
+                delayMs={REVEAL.phoneCard}
+                title={
+                  myResult.guess == null
+                    ? "No guess in time"
+                    : myResult.distance === 0
+                      ? "DEAD ON. Are you psychic?"
+                      : `You said ${fmt(myResult.guess)}, off by ${myResult.distance!.toLocaleString()}`
+                }
+              />
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
+              <Leaderboard players={players} highlightId={playerId} gains={gains} />
+            </Reveal>
+            <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-4 items-center">
-          <h1 className="text-3xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
+        <div style={EDGE_CLIP}>
+          <FinalStandings players={players} highlightId={playerId} size="phone" staged={staged} />
         </div>
       )}
     </Shell>

@@ -1,9 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, Game } from "@/lib/needle/types";
 import { claimCard, needleCardKey, needleNameKey } from "@/lib/needle/cards";
+import { GAME_META } from "@/lib/games";
+import { Marquee } from "@/app/components/brand";
 
 export default function JoinPage() {
   const [code, setCode] = useState("");
@@ -65,8 +68,19 @@ export default function JoinPage() {
 
   return (
     <main className="dark flex flex-1 flex-col items-center justify-center gap-6 p-6">
-      <h1 className="text-4xl font-bold">Join</h1>
-      <div className="flex flex-col gap-3 w-full max-w-xs">
+      {/* Lined up with the form, not the far edge of a laptop screen. */}
+      <div className="w-full max-w-xs">
+        <Link href="/" className="text-sm text-fog">
+          ← games
+        </Link>
+      </div>
+      <Marquee
+        icon={GAME_META.needle.icon}
+        title={GAME_META.needle.name}
+        size="lg"
+        burstKey="join"
+      />
+      <div className="neon-panel fx-rise flex flex-col gap-3 w-full max-w-xs p-4">
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
@@ -77,26 +91,27 @@ export default function JoinPage() {
           autoComplete="off"
           spellCheck={false}
           inputMode="text"
-          className="rounded-lg border-2 border-black dark:border-white bg-white dark:bg-zinc-900 px-4 py-4 text-center text-3xl font-mono tracking-widest uppercase"
+          className="rounded-xl border-2 border-glow bg-ink px-4 py-4 text-center text-3xl font-mono tracking-[0.3em] uppercase placeholder:text-fog/40"
+          style={{ boxShadow: "inset 0 3px 10px rgba(0,0,0,.6)" }}
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name"
           autoComplete="off"
-          className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3"
+          className="rounded-xl border border-line bg-card px-4 py-3 text-base placeholder:text-fog/40"
         />
-        <button
-          onClick={join}
-          disabled={busy}
-          className="rounded-lg bg-black dark:bg-white text-white dark:text-black py-4 font-semibold disabled:opacity-40"
-        >
-          {busy ? "Joining…" : "Join"}
+        <button onClick={join} disabled={busy} className="coin-btn coin-glow disabled:opacity-40">
+          <span className="coin-face py-4 text-lg">{busy ? "Joining…" : "Join"}</span>
         </button>
-        <p className="text-xs text-zinc-500 text-center">
+        <p className="text-xs text-fog text-center">
           Code: {code.length}/4 · Name: {name.trim() ? "✓" : "missing"}
         </p>
-        {err && <p className="text-red-600 text-sm text-center">{err}</p>}
+        {err && (
+          <p key={err} className="fx-shake text-lose text-sm text-center">
+            {err}
+          </p>
+        )}
       </div>
     </main>
   );

@@ -6,9 +6,15 @@ import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { Confetti } from "@/app/components/Confetti";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { playerHue } from "@/lib/fx";
+import { useStaged } from "@/lib/motion";
 import { shuffle } from "@/lib/rooms";
-import { Dial, MARK_COLORS } from "@/app/vibe/Dial";
+import { Dial } from "@/app/vibe/Dial";
 import { PlayerPanel } from "@/app/vibe/PlayerPanel";
+import { BULLSEYE, EDGE_CLIP, REVEAL } from "@/app/vibe/reveal";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { addBot, removeBot, isBot, humansOf, botsOf, botSkill, botDialGuess, botBlindDial, botPsychicSpot, botDelayMs } from "@/lib/bots";
 import { useBotSubmissions } from "@/lib/useBots";
@@ -34,6 +40,8 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
   const [botErr, setBotErr] = useState<string | null>(null);
   // Set when whoever opened this screen also joined as a player.
   const seat = useHostSeat("vibe", code, players, refresh, playersLoaded);
+  // Display only: should this screen play the reveal, or show its end state?
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
   const myPlayerId = seat.playerId;
   const iAmPlaying = seat.canPlay;
   const settings = (room?.settings ?? {}) as { cycles?: number };
@@ -244,12 +252,17 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
 
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  // Each dial in its player's own color, the same as their dot everywhere else.
   const revealMarks = (phaseData.results ?? [])
     .filter((r) => r.guess != null)
-    .map((r, i) => ({ pos: r.guess!, label: r.name, color: MARK_COLORS[i % MARK_COLORS.length] }));
+    .map((r) => ({ id: r.player_id, pos: r.guess!, label: r.name, color: playerHue(r.player_id) }));
+  const target = phaseData.target;
+  const bullseye = target != null && revealMarks.some((m) => Math.abs(m.pos - target) <= BULLSEYE);
+  const guessers = players.filter((p) => p.id !== round?.psychic_id);
+  const canStart = players.length >= 3 && humansOf(players).length >= 1;
 
   return (
-    <Shell title="Vibe Check · host" icon="🌡️">
+    <Shell title="Vibe Check · host" icon="🌡️" attractKey={room.phase === "lobby" ? players.length : undefined}>
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -282,10 +295,7 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
             Bots take psychic turns too, so you get to guess as well as give
             clues. One round per player.
           </p>
-          <BigBtn
-            onClick={startGame}
-            disabled={busy || players.length < 3 || humansOf(players).length < 1}
-          >
+          <BigBtn onClick={startGame} disabled={busy || !canStart} attention={canStart}>
             {players.length < 3
               ? "Need at least 3 players (bots count)…"
               : humansOf(players).length < 1
@@ -314,9 +324,8 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
           <h1 className="text-2xl font-extrabold text-center">
             {round.psychic_name} is tuning in…
           </h1>
-          <div className="w-full max-w-md flex justify-between text-lg font-bold">
-            <span>← {round.left}</span>
-            <span>{round.right} →</span>
+          <div className="w-full max-w-md">
+            <Dial marks={[]} left={round.left} right={round.right} />
           </div>
           <p className="text-fog text-sm text-center">
             They can see the secret spot on this scale and are writing a clue.
@@ -330,18 +339,16 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
       {room.phase === "guess" && round && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{rounds.length} · {guesses.length}/{guesserCount} dials set
+            Round {room.round_idx + 1}/{rounds.length}
           </p>
-          <div className="rounded-2xl bg-card border-2 border-glow p-5 text-center">
+          <div className="neon-panel p-5 text-center">
             <div className="text-fog text-xs uppercase tracking-widest">
               {round.psychic_name}&apos;s clue
             </div>
             <div className="text-2xl font-extrabold">“{phaseData.clue}”</div>
           </div>
-          <div className="flex justify-between text-lg font-bold">
-            <span>← {round.left}</span>
-            <span>{round.right} →</span>
-          </div>
+          <Dial marks={[]} left={round.left} right={round.right} />
+          <LockInRow players={guessers} doneIds={guesses.map((s) => s.player_id)} label="dials set" />
           <p className="text-fog text-center text-sm">
             Slide your dial to where that clue lives on the scale.
           </p>
@@ -358,35 +365,42 @@ export default function VibeHost({ params }: { params: Promise<{ code: string }>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{rounds.length} · clue: “{phaseData.clue}”
-          </p>
-          <Dial
-            marks={revealMarks}
-            target={phaseData.target}
-            left={round.left}
-            right={round.right}
-          />
-          <p className="text-center text-sm text-fog">
-            The green line is where {round.psychic_name} was pointing ({phaseData.target}).
-          </p>
-          <Leaderboard players={players} gains={gains} highlightId={myPlayerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next psychic"}
-          </BigBtn>
-        </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4" style={EDGE_CLIP}>
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{rounds.length} · clue: “{phaseData.clue}”
+            </p>
+            <Dial marks={revealMarks} target={target} left={round.left} right={round.right} />
+            <Reveal kind="fade" delayMs={REVEAL.target}>
+              <p className="text-center text-sm text-fog">
+                The green line is where {round.psychic_name} was pointing ({target}).
+              </p>
+            </Reveal>
+            {bullseye && (
+              <div className="flex justify-center">
+                <Stamp tone="gold" size="lg" delayMs={REVEAL.bullseye}>
+                  Bullseye
+                </Stamp>
+                <Confetti delayMs={REVEAL.bullseye} />
+              </div>
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={myPlayerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next psychic"}
+            </BigBtn>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={myPlayerId} />
-          </div>
-          <Link href="/vibe/host" className="underline text-fog">
-            Play again with a new room
-          </Link>
+        <div style={EDGE_CLIP}>
+          <FinalStandings players={players} highlightId={myPlayerId} size="host" staged={staged}>
+            <Link href="/vibe/host" className="tv-hide underline text-fog">
+              Play again with a new room
+            </Link>
+          </FinalStandings>
         </div>
       )}
     </Shell>

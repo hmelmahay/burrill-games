@@ -58,12 +58,8 @@ export function PlayerPanel({
           className={`rounded-xl border-2 border-glow bg-card px-4 py-4 text-lg ${inputClass}`}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
-        <button
-          onClick={submit}
-          disabled={!guess.trim()}
-          className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg disabled:opacity-40"
-        >
-          Lock it in
+        <button onClick={submit} disabled={!guess.trim()} className="coin-btn coin-glow disabled:opacity-40">
+          <span className="coin-face py-4 text-lg">Lock it in</span>
         </button>
         {toggle}
       </div>

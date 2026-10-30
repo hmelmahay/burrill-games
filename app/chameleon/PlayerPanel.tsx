@@ -77,19 +77,17 @@ export function PlayerPanel({
       return (
         <div className="flex flex-col items-center gap-2 py-2">
           <p className="text-fog text-sm">Your role is hidden — others can see this screen.</p>
-          <button
-            onClick={() => setPeeking(true)}
-            className="rounded-xl border-2 border-violet px-6 py-3 font-bold hover:bg-violet/10"
-          >
-            🫣 Tap to peek at your role
+          <button onClick={() => setPeeking(true)} className="coin-btn coin-ghost">
+            <span className="coin-face px-6 py-3 border-violet text-white">🫣 Tap to peek at your role</span>
           </button>
         </div>
       );
     }
     return (
       <div className="flex flex-col gap-3">
+        {/* Role card: flips over when it appears (fx-flip-y, once on mount). */}
         {isChameleon ? (
-          <div className="rounded-2xl border-2 border-lose bg-lose/10 p-4 text-center">
+          <div className="fx-flip-y rounded-2xl border-2 border-lose bg-lose/10 p-4 text-center">
             <div className="text-3xl">🦎</div>
             <div className="text-xl font-extrabold">You are the Chameleon!</div>
             <p className="text-fog text-sm mt-1">
@@ -98,7 +96,7 @@ export function PlayerPanel({
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl border-2 border-win bg-win/10 p-4 text-center">
+          <div className="fx-flip-y rounded-2xl border-2 border-win bg-win/10 p-4 text-center">
             <div className="text-fog text-xs uppercase tracking-widest">The secret word is</div>
             <div className="text-2xl font-extrabold text-win">
               {round.words[round.secret_idx]}
@@ -140,7 +138,7 @@ export function PlayerPanel({
               <button
                 key={p.id}
                 onClick={() => sendVote(p.id)}
-                className="rounded-xl border-2 border-line bg-card px-3 py-3.5 font-bold hover:border-lose truncate"
+                className="press rounded-xl border-2 border-line bg-card px-3 py-3.5 font-bold hover:border-lose truncate"
               >
                 {p.name}
               </button>

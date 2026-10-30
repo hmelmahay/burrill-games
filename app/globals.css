@@ -14,6 +14,12 @@
   --color-violet: #7c5cff;
   --color-win: #2ecc71;
   --color-lose: #e74c3c;
+  /* added for the arcade redesign */
+  --color-gold: #ffd166;
+  --color-pink: #ff4fd8;
+  --color-cyan: #2de2e6;
+  --color-silver: #cfd4f7;
+  --color-bronze: #e8955f;
 }
 
 body {
@@ -32,12 +38,6 @@ body {
     Arial, sans-serif;
 }
 
-@keyframes popIn {
-  0% { transform: scale(0.85); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.pop-in { animation: popIn 0.25s ease-out; }
-
 /* A seated host typing on a screen the room can also see: show dots, not the
    answer. (Chrome, Safari and Edge; elsewhere the text stays readable.) */
 .type-masked { -webkit-text-security: disc; }
@@ -49,3 +49,261 @@ body {
 .tv-mode input {
   display: none !important;
 }
+
+/* ===================== Arcade redesign (motion + look) =====================
+   Rules: keyframes use literal values and move only transform/opacity.
+   Overridable classes live in @layer components (a Tailwind utility on the
+   same element still wins). Plain rules at the bottom are guards only.
+   Do not add @layer-less component classes, `inset`, :is/:where/:has,
+   color-mix or var() inside @keyframes.  Writing all four of top/right/
+   bottom/left in one rule isn't enough:  the CSS build folds them back into
+   `inset`, which older TV engines ignore.  Use top + left + width + height. */
+/* ===== keyframes: literal values, transform + opacity only ===== */
+@keyframes popIn { 0% { opacity: 0; transform: scale(0.8); } 60% { opacity: 1; transform: scale(1.04); } 100% { opacity: 1; transform: none; } }
+.pop-in { animation: popIn 0.3s ease-out; }
+
+@keyframes fxPhaseIn { from { transform: translateY(8px); } to { transform: none; } }
+@keyframes fxRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes fxFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fxSlam { 0% { opacity: 0; transform: scale(1.8); } 60% { opacity: 1; transform: scale(0.96); } 100% { opacity: 1; transform: none; } }
+@keyframes fxStamp { 0% { opacity: 0; transform: scale(2) rotate(-14deg); } 55% { opacity: 1; transform: scale(0.92) rotate(-4deg); } 75% { opacity: 1; transform: scale(1.04) rotate(-4deg); } 100% { opacity: 1; transform: rotate(-4deg); } }
+@keyframes fxDrop { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
+@keyframes fxFlip { from { opacity: 0.2; transform: perspective(700px) rotateX(85deg); } to { opacity: 1; transform: none; } }
+@keyframes fxFlipY { from { opacity: 0.2; transform: perspective(700px) rotateY(85deg); } to { opacity: 1; transform: none; } }
+@keyframes fxBarX { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes fxBarY { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes fxShake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+@keyframes fxTick { from { transform: scale(1.35); } to { transform: none; } }
+@keyframes fxLedOn { 0% { opacity: 0.3; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.2); } 100% { opacity: 1; transform: none; } }
+@keyframes fxDauber { 0% { opacity: 0.3; transform: scale(1.35); } 60% { opacity: 1; transform: scale(0.94); } 100% { opacity: 1; transform: none; } }
+@keyframes fxNeonOn { 0% { opacity: 0; } 12% { opacity: 0.9; } 18% { opacity: 0.3; } 30%, 100% { opacity: 1; } }
+@keyframes fxCrtOn { 0% { opacity: 0; transform: scale(1, 0.03); } 35% { opacity: 1; transform: scale(1, 0.03); } 100% { opacity: 1; transform: none; } }
+@keyframes fxRingBurst { from { opacity: 0.9; transform: scale(0.6); } to { opacity: 0; transform: scale(2.2); } }
+@keyframes fxDrum { 0% { opacity: 0; transform: scale(0.9); } 12% { opacity: 1; transform: none; } 30% { transform: scale(1.06); } 45% { transform: scale(0.98); } 60% { transform: scale(1.06); } 80% { opacity: 1; transform: scale(0.98); } 100% { opacity: 0; transform: none; } }
+@keyframes fxBreathe { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes fxBulbs { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes fxCaret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes fxSheen { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
+@keyframes fxSlot { from { transform: translateY(88.8889%); } to { transform: none; } }
+@keyframes fxFlash { 0%, 100% { opacity: 0; } 15%, 40% { opacity: 1; } 55% { opacity: 0; } }
+@keyframes fxSpin { to { transform: rotate(360deg); } }
+@keyframes fxConfetti1 { 0% { opacity: 1; transform: translate(0, -20px) rotate(0deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-60px, 105vh) rotate(720deg); } }
+@keyframes fxConfetti2 { 0% { opacity: 1; transform: translate(0, -20px) rotate(0deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(50px, 105vh) rotate(-540deg); } }
+@keyframes fxConfetti3 { 0% { opacity: 1; transform: translate(0, -20px) rotate(0deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-20px, 105vh) rotate(600deg); } }
+@keyframes fxConfetti4 { 0% { opacity: 1; transform: translate(0, -20px) rotate(0deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(80px, 105vh) rotate(-900deg); } }
+
+/* ===== focus: visible ring for keyboards and TV remotes ===== */
+@layer base {
+  a:focus, button:focus, summary:focus { outline: 3px solid #ffd166; outline-offset: 2px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #ffd166; outline-offset: 1px; }
+}
+/* Its own block: an engine without :focus-visible drops only this rule and keeps the ring. */
+@layer base {
+  a:focus:not(:focus-visible), button:focus:not(:focus-visible), summary:focus:not(:focus-visible) { outline: none; }
+}
+
+@layer components {
+  /* ----- accents: data-game comes from app/<slug>/layout.tsx; .acc-* for one-off cards ----- */
+  :root, .acc-orange, [data-game="scatter"], [data-game="hottake"] {
+    --fx-acc: #ff9f1c; --fx-acc-core: #ffd29a; --fx-acc-glow: rgba(255, 159, 28, 0.55); --fx-acc-soft: rgba(255, 159, 28, 0.12); --fx-acc-deep: #a35f00;
+  }
+  .acc-violet, [data-game="majority"], [data-game="twotruths"], [data-game="doodle"] {
+    --fx-acc: #7c5cff; --fx-acc-core: #cfc4ff; --fx-acc-glow: rgba(124, 92, 255, 0.6); --fx-acc-soft: rgba(124, 92, 255, 0.14); --fx-acc-deep: #4a32b5;
+  }
+  .acc-gold, [data-game="quiz"], [data-game="emoji"], [data-game="chain"] {
+    --fx-acc: #ffd166; --fx-acc-core: #fff1c9; --fx-acc-glow: rgba(255, 209, 102, 0.5); --fx-acc-soft: rgba(255, 209, 102, 0.12); --fx-acc-deep: #a37f1f;
+  }
+  .acc-pink, [data-game="needle"], [data-game="vibe"] {
+    --fx-acc: #ff4fd8; --fx-acc-core: #ffc6f3; --fx-acc-glow: rgba(255, 79, 216, 0.5); --fx-acc-soft: rgba(255, 79, 216, 0.12); --fx-acc-deep: #a3288a;
+  }
+  .acc-cyan, [data-game="ballpark"], [data-game="chameleon"] {
+    --fx-acc: #2de2e6; --fx-acc-core: #c8fbfc; --fx-acc-glow: rgba(45, 226, 230, 0.45); --fx-acc-soft: rgba(45, 226, 230, 0.12); --fx-acc-deep: #1a8f92;
+  }
+
+  /* ----- Needle Drop palette remap (zinc/indigo/purple/amber/green/blue -> arcade) ----- */
+  [data-game="needle"] {
+    --color-zinc-900: #171b3a; --color-zinc-800: #1d2247; --color-zinc-700: #2a3060; --color-zinc-600: #3a4178;
+    --color-zinc-500: #9aa0c8; --color-zinc-400: #b8bde0; --color-zinc-300: #d9dcf0; --color-zinc-200: #e6e8f7; --color-zinc-100: #f2f3ff;
+    --color-indigo-500: #7c5cff; --color-indigo-600: #7c5cff; --color-indigo-900: #2b2470; --color-indigo-950: #1d1b46;
+    --color-purple-500: #a78bfa; --color-purple-600: #7c5cff; --color-purple-950: #241a52;
+    --color-amber-400: #ffb84d; --color-amber-500: #ff9f1c; --color-amber-600: #e88a00; --color-amber-950: #2a1a05;
+    --color-yellow-300: #ffd166; --color-yellow-900: #4a3b10;
+    --color-green-500: #2ecc71; --color-green-600: #17874a; --color-emerald-600: #17874a; --color-blue-600: #7c5cff;
+  }
+
+  /* ----- phase entrance: one 180ms nudge per phase block, readable on frame 1 ----- */
+  .shell > :not(.shell-head):not(.no-enter):not(.pop-in):not([class*="fx-"]) { animation: fxPhaseIn 0.18s ease-out; }
+
+  /* ----- surfaces ----- */
+  .neon-panel { position: relative; border-radius: 1rem; background: #171b3a; border: 1px solid var(--fx-acc, #ff9f1c); box-shadow: 0 0 16px var(--fx-acc-glow, rgba(255, 159, 28, 0.55)), inset 0 0 24px var(--fx-acc-soft, rgba(255, 159, 28, 0.12)); }
+  .neon-text { color: var(--fx-acc-core, #ffd29a); text-shadow: 0 0 6px var(--fx-acc-glow, rgba(255, 159, 28, 0.55)), 0 0 18px var(--fx-acc-glow, rgba(255, 159, 28, 0.55)); }
+  .font-display { font-family: var(--font-bungee, "Arial Black"), "Arial Black", Impact, sans-serif; letter-spacing: 0.03em; }
+  .title-sign { color: #ff9f1c; }
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .title-sign { background-image: linear-gradient(120deg, #ffd166, #ff9f1c 40%, #7c5cff); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+  }
+  .fx-floor { position: fixed; left: 0; right: 0; bottom: 0; height: 45vh; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 70% 60% at 50% 120%, rgba(124, 92, 255, 0.22), rgba(124, 92, 255, 0) 70%); }
+
+  /* Game card on the landing page and /tv: quiet until hovered; accent strip on top. */
+  .cabinet { position: relative; border-radius: 1.25rem; background: #171b3a; border: 1px solid #2a3060; border-top: 3px solid var(--fx-acc, #ff9f1c); transition: transform 0.15s ease-out; }
+  @media (hover: hover) {
+    .cabinet:hover { transform: translateY(-3px); border-color: var(--fx-acc, #ff9f1c); box-shadow: 0 0 18px var(--fx-acc-glow, rgba(255, 159, 28, 0.55)); }
+  }
+  .cabinet-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 3rem; height: 3rem; border-radius: 0.9rem; font-size: 1.75rem; background: var(--fx-acc-soft, rgba(255, 159, 28, 0.12)); border: 1px solid var(--fx-acc, #ff9f1c); }
+  /* Big focus ring for TV remotes on /tv. */
+  .remote-focus:focus { outline: 5px solid #ffd166; outline-offset: 4px; }
+  /* A mouse click shows no ring.  An engine without :focus-visible drops only this rule and keeps it. */
+  .remote-focus:focus:not(:focus-visible) { outline: none; }
+
+  /* ----- marquee sign (Marquee component) ----- */
+  .marquee { position: relative; display: inline-flex; align-items: center; max-width: 100%; padding: 0.3rem 0.85rem 0.3rem 0.35rem; border-radius: 999px; background: #0d1026; border: 2px solid var(--fx-acc, #ff9f1c); box-shadow: 0 0 14px var(--fx-acc-glow, rgba(255, 159, 28, 0.55)); }
+  .marquee-sm { font-size: 0.875rem; }
+  .marquee-lg { font-size: 1.125rem; padding: 0.45rem 1.1rem 0.45rem 0.45rem; }
+  @media (min-width: 640px) { .marquee-lg { font-size: 1.5rem; } }
+  .marquee-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.9em; height: 1.9em; margin-right: 0.5rem; border-radius: 999px; background: var(--fx-acc-soft, rgba(255, 159, 28, 0.12)); border: 1px solid var(--fx-acc, #ff9f1c); }
+  .marquee-title { font-family: var(--font-bungee, "Arial Black"), "Arial Black", Impact, sans-serif; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.1; color: var(--fx-acc-core, #ffd29a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .marquee-sub { margin-left: 0.5rem; font-size: 0.75em; color: #9aa0c8; white-space: nowrap; }
+  .marquee-bulbs { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .marquee-bulbs::before, .marquee-bulbs::after { content: ""; position: absolute; left: 14px; right: 14px; height: 4px; background-image: radial-gradient(circle, var(--fx-acc-core, #ffd29a) 1.5px, rgba(0, 0, 0, 0) 2px); background-size: 10px 4px; background-repeat: repeat-x; }
+  .marquee-bulbs::before { top: -3px; }
+  .marquee-bulbs::after { bottom: -3px; background-position: 5px 0; }
+  .marquee-bulbs.is-chasing::before { animation: fxBulbs 0.6s steps(1) 8; }
+  .marquee-bulbs.is-chasing::after { animation: fxBulbs 0.6s steps(1) 0.3s 8; }
+
+  /* ----- arcade buttons: the <button>/<a> is a still hit box; its one child
+     .coin-face is the visible button and is what moves, so a press never
+     slides the target out from under a finger or swallows a click ----- */
+  .coin-btn { position: relative; display: inline-flex; padding: 0 0 6px 0; background: transparent; border: 0; border-radius: 0.875rem; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .coin-face { position: relative; overflow: hidden; display: flex; flex: 1 1 auto; align-items: center; justify-content: center; text-align: center; border-radius: inherit; font-weight: 800; box-shadow: 0 6px 0 var(--fx-lip, #a35f00), inset 0 2px 0 rgba(255, 255, 255, 0.35); transition: transform 70ms ease-out; }
+  .coin-btn:active:not(:disabled) .coin-face { transform: translateY(4px); box-shadow: 0 2px 0 var(--fx-lip, #a35f00), inset 0 2px 0 rgba(255, 255, 255, 0.35); }
+  .coin-btn:disabled .coin-face { box-shadow: none; }
+  .coin-face::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0)); transform: translateX(-120%) skewX(-20deg); pointer-events: none; }
+  @media (hover: hover) {
+    .coin-btn:hover:not(:disabled) .coin-face { filter: brightness(1.08); }
+    .coin-btn:hover:not(:disabled) .coin-face::after { animation: fxSheen 0.6s ease-out; }
+  }
+  .coin-glow .coin-face { background: #ff9f1c; color: #1a1000; --fx-lip: #a35f00; }
+  .coin-violet .coin-face { background: #7c5cff; color: #ffffff; --fx-lip: #4a32b5; }
+  .coin-win .coin-face { background: #2ecc71; color: #03180b; --fx-lip: #1b7f45; }
+  .coin-lose .coin-face { background: #e74c3c; color: #ffffff; --fx-lip: #9b2c21; }
+  .coin-ghost .coin-face { background: #0d1026; color: #9aa0c8; border: 2px solid #2a3060; --fx-lip: #1d2247; }
+  .fx-attention .coin-face::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: inherit; box-shadow: inset 0 0 0 3px #ffd166, inset 0 0 16px rgba(255, 209, 102, 0.6); opacity: 0; pointer-events: none; animation: fxBreathe 0.8s ease-in-out 3; }
+  /* Tiles and vote buttons: instant darken on press, no transform, no transition. */
+  .press { -webkit-tap-highlight-color: transparent; }
+  .press:active:not(:disabled) { filter: brightness(0.88); }
+
+  /* ----- join code ----- */
+  .code-tiles { display: flex; justify-content: center; }
+  .code-tile { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.35em; margin: 0 0.06em; border-radius: 0.18em; background: #0d1026; border: 2px solid #ff9f1c; box-shadow: 0 4px 0 #a35f00, 0 0 18px rgba(255, 159, 28, 0.35); color: #ff9f1c; font-family: var(--font-mono, ui-monospace, monospace); font-weight: 800; animation: popIn 0.3s ease-out backwards; }
+  .code-ring { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); border-radius: inherit; box-shadow: 0 0 28px rgba(255, 159, 28, 0.55); pointer-events: none; }
+  .code-ring.attract { animation: fxBreathe 2.4s ease-in-out 2; }
+
+  /* ----- timers ----- */
+  .fuse { position: relative; height: 0.75rem; border-radius: 999px; background: #2a3060; overflow: hidden; }
+  .fuse-slim { height: 0.375rem; }
+  .fuse-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; transform-origin: 0 50%; }
+
+  /* ----- high-score table ----- */
+  .hiscore-row { display: flex; align-items: center; border-radius: 0.625rem; padding: 0.5rem 0.75rem; background: #171b3a; border: 1px solid #2a3060; }
+  .hiscore-row.is-me { background: rgba(124, 92, 255, 0.22); border-color: #7c5cff; }
+  .hiscore-row.is-leader { border-color: #ffd166; box-shadow: 0 0 14px rgba(255, 209, 102, 0.35); }
+  .rank-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 2.7em; padding: 0.2em 0.35em; border-radius: 0.4em; font-family: var(--font-bungee, "Arial Black"), "Arial Black", Impact, sans-serif; font-size: 0.7rem; letter-spacing: 0.04em; color: #1a1000; }
+  .rank-1 { background: #ffd166; }
+  .rank-2 { background: #cfd4f7; }
+  .rank-3 { background: #e8955f; }
+  .gain-chip { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.8rem; font-weight: 800; color: #2ecc71; background: rgba(46, 204, 113, 0.14); }
+  .gain-chip.is-neg { color: #e74c3c; background: rgba(231, 76, 60, 0.14); }
+
+  /* ----- players ----- */
+  .player-dot { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.6em; height: 1.6em; border-radius: 999px; color: #1a1000; font-weight: 800; font-size: 0.8em; line-height: 1; }
+  .token { display: inline-flex; align-items: center; border-radius: 999px; padding: 0.25rem 0.75rem 0.25rem 0.3rem; background: #171b3a; border: 1px solid #2a3060; font-weight: 600; }
+  .token .player-dot { margin-right: 0.45rem; }
+  .token.is-done { border-color: #2ecc71; background: rgba(46, 204, 113, 0.12); color: #2ecc71; }
+  .led { display: inline-block; width: 0.65rem; height: 0.65rem; border-radius: 999px; background: #2a3060; }
+  .led.on { background: #2ecc71; box-shadow: 0 0 6px rgba(46, 204, 113, 0.8); animation: fxLedOn 0.35s ease-out; }
+
+  /* ----- reveals ----- */
+  .vote-track { position: relative; height: 0.75rem; border-radius: 999px; background: #2a3060; overflow: hidden; }
+  .vote-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 999px; }
+  .podium-block { width: 100%; border-radius: 0.9rem 0.9rem 0 0; border: 2px solid #2a3060; border-bottom: 0; background: linear-gradient(180deg, #1d2247, #171b3a); }
+  .podium-block.place-1 { border-color: #ffd166; box-shadow: 0 0 22px rgba(255, 209, 102, 0.35); }
+  .podium-block.place-2 { border-color: #cfd4f7; }
+  .podium-block.place-3 { border-color: #e8955f; }
+  .stamp { display: inline-block; padding: 0.1em 0.55em; border: 3px solid currentColor; border-radius: 0.45em; background: rgba(13, 16, 38, 0.88); color: #ff9f1c; font-family: var(--font-bungee, "Arial Black"), "Arial Black", Impact, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.15; white-space: nowrap; transform: rotate(-4deg); }
+  .stamp-sm { font-size: 0.8rem; }
+  .stamp-md { font-size: 1.1rem; }
+  .stamp-lg { font-size: 1.75rem; }
+  .stamp.tone-win { color: #2ecc71; }
+  .stamp.tone-lose { color: #e74c3c; }
+  .stamp.tone-gold { color: #ffd166; }
+  .stamp.tone-violet { color: #a78bfa; }
+  .stamp.tone-pink { color: #ff4fd8; }
+  .stamp.tone-cyan { color: #2de2e6; }
+  .stamp.tone-fog { color: #9aa0c8; }
+  /* Rests lit.  A staged reveal adds .fx-neon-on, so a late screen doesn't flicker. */
+  .tile-correct { position: absolute; top: -4px; left: -4px; width: calc(100% + 8px); height: calc(100% + 8px); border-radius: 1rem; border: 4px solid #2ecc71; box-shadow: 0 0 22px rgba(46, 204, 113, 0.6); pointer-events: none; }
+
+  /* ----- one-shot entrances: rest visible, hidden during their delay (backwards fill) ----- */
+  .fx-rise { animation: fxRise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+  .fx-fade { animation: fxFade 0.3s ease-out backwards; }
+  .fx-pop { animation: popIn 0.3s ease-out backwards; }
+  .fx-slam { animation: fxSlam 0.46s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+  .fx-stamp { animation: fxStamp 0.42s ease-out backwards; }
+  .fx-drop { animation: fxDrop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) backwards; }
+  .fx-flip { animation: fxFlip 0.45s ease-out backwards; }
+  .fx-flip-y { animation: fxFlipY 0.45s ease-out backwards; }
+  .fx-bar-x { transform-origin: 0 50%; animation: fxBarX 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+  .fx-bar-y { transform-origin: 50% 100%; animation: fxBarY 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards; }
+  .fx-neon-on { animation: fxNeonOn 0.7s linear backwards; }
+  .fx-crt-on { animation: fxCrtOn 0.36s ease-out backwards; }
+  .fx-shake { animation: fxShake 0.32s ease-out; }
+  .fx-tick { display: inline-block; animation: fxTick 0.3s ease-out; }
+  .fx-dauber { animation: fxDauber 0.3s ease-out; }
+
+  /* ----- overlays that rest invisible (no fill) ----- */
+  .fx-ring { position: absolute; top: 50%; left: 50%; width: 2.75rem; height: 2.75rem; margin: -1.375rem 0 0 -1.375rem; border-radius: 999px; border: 3px solid #ffd166; opacity: 0; pointer-events: none; animation: fxRingBurst 0.8s ease-out 2; }
+  .fx-drum { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; animation-name: fxDrum; animation-timing-function: linear; }
+  .fx-cycle { position: relative; display: inline-block; }
+  .fx-cycle-copy { position: absolute; top: 0; left: 0; opacity: 0; animation: fxFlash 1.2s linear 3; }
+  .fx-confetti { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; z-index: 60; }
+  .fx-confetto { position: absolute; top: 0; border-radius: 2px; opacity: 0; animation-timing-function: cubic-bezier(0.25, 0.6, 0.45, 1); }
+  .fx-c1 { animation-name: fxConfetti1; }
+  .fx-c2 { animation-name: fxConfetti2; }
+  .fx-c3 { animation-name: fxConfetti3; }
+  .fx-c4 { animation-name: fxConfetti4; }
+
+  /* ----- short loops (always marked .attract so TV and the stage can stop them) ----- */
+  .fx-caret { display: inline-block; margin-left: 0.1em; animation: fxCaret 1.1s steps(1) 4; }
+  .fx-dots > span { display: inline-block; animation: fxCaret 1.2s steps(1) 4; }
+  .fx-dots > span:nth-child(2) { animation-delay: 0.2s; }
+  .fx-dots > span:nth-child(3) { animation-delay: 0.4s; }
+  .fx-vinyl { display: inline-block; }
+  .fx-vinyl.is-spinning { animation: fxSpin 2.4s linear 13; }
+
+  /* ----- game helpers ----- */
+  .fx-reel { position: relative; display: inline-block; height: 1em; line-height: 1; overflow: hidden; vertical-align: bottom; }
+  .fx-reel-col { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; }
+  .fx-reel-col > span { display: block; height: 1em; line-height: 1; }
+  .fx-reel-col.fx-slot { animation: fxSlot 0.7s cubic-bezier(0.2, 0.75, 0.25, 1) backwards; }
+  .fx-letterbox { position: absolute; left: 0; right: 0; height: 14%; background: #000000; pointer-events: none; animation: fxBarY 0.35s ease-out backwards; }
+  .fx-letterbox.lb-top { top: 0; transform-origin: 50% 0; }
+  .fx-letterbox.lb-bottom { bottom: 0; transform-origin: 50% 100%; }
+  .fx-range { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; border-radius: 999px; background: linear-gradient(90deg, #7c5cff, #171b3a 50%, #ff9f1c); }
+  .fx-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; border-radius: 999px; background: #f2f3ff; border: 4px solid var(--fx-acc, #ff4fd8); box-shadow: 0 0 12px var(--fx-acc-glow, rgba(255, 79, 216, 0.5)); }
+  .fx-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 999px; background: #f2f3ff; border: 4px solid var(--fx-acc, #ff4fd8); box-shadow: 0 0 12px var(--fx-acc-glow, rgba(255, 79, 216, 0.5)); }
+  .fx-range::-moz-range-track { height: 14px; border-radius: 999px; background: transparent; }
+}
+
+/* ===== guards: plain rules so they beat every utility ===== */
+.tv-mode .tv-hide { display: none !important; }
+.tv-mode .attract, .tv-mode .attract::before, .tv-mode .attract::after,
+.calm .attract, .calm .attract::before, .calm .attract::after { animation: none !important; }
+/* Dots blink on their child spans, which the rule above can't reach. */
+.tv-mode .fx-dots > span, .calm .fx-dots > span { animation: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  .fx-confetti { display: none !important; }
+}
+html.fx-rm *, html.fx-rm *::before, html.fx-rm *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+html.fx-rm .fx-confetti { display: none !important; }

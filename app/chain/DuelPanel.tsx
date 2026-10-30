@@ -122,6 +122,9 @@ export function DuelPanel({
           onKeyDown={(e) => e.key === "Enter" && submit(false)}
           placeholder="Your guess…"
           disabled={busy}
+          // Chain words are 8 letters at most:  12 leaves room for a typo and
+          // keeps a long miss from stretching the banner that echoes it.
+          maxLength={12}
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
@@ -131,9 +134,9 @@ export function DuelPanel({
         <button
           onClick={() => submit(false)}
           disabled={busy || !guess.trim()}
-          className="rounded-xl bg-glow text-[#1a1000] px-5 font-bold disabled:opacity-40"
+          className="coin-btn coin-glow shrink-0 disabled:opacity-40"
         >
-          Go
+          <span className="coin-face px-5">Go</span>
         </button>
       </div>
       <button

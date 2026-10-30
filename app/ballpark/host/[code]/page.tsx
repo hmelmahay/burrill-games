@@ -6,11 +6,18 @@ import { supabase, BallparkRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
 import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, RollingNumber } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { PlayerDot } from "@/app/components/brand";
+import { useStaged } from "@/lib/motion";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botNumberGuess, botBlindNumber } from "@/lib/bots";
 import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/ballpark/PlayerPanel";
+import { NumberLine } from "@/app/ballpark/NumberLine";
+import { EDGE_CLIP, REVEAL } from "@/app/ballpark/reveal";
+import { formatterFor } from "@/app/ballpark/format";
 import {
   RANK_POINTS,
   PARTICIPATION_POINTS,
@@ -24,6 +31,8 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
   const { room, players, subs, error, refresh, playersLoaded } = useRoom("ballpark", code);
   const { tvRef } = useSpectator();
   const seat = useHostSeat("ballpark", code, players, refresh, playersLoaded);
+  // Display only: should this screen play the reveal, or show its end state?
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -161,9 +170,13 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
     if (b.distance == null) return -1;
     return a.distance - b.distance;
   });
+  const bestDistance = sortedResults[0]?.distance ?? null;
+  // Years print as 1903, not 1,903.
+  const fmt = formatterFor(round);
+  const canStart = players.length >= 1 && humansOf(players).length >= 1;
 
   return (
-    <Shell title="Ballpark · host" icon="🎯">
+    <Shell title="Ballpark · host" icon="🎯" attractKey={room.phase === "lobby" ? players.length : undefined}>
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -192,10 +205,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
             )}
           </div>
           {botErr && <p className="text-lose text-sm text-center">{botErr}</p>}
-          <BigBtn
-            onClick={startGame}
-            disabled={busy || players.length < 1 || humansOf(players).length < 1}
-          >
+          <BigBtn onClick={startGame} disabled={busy || !canStart} attention={canStart}>
             {humansOf(players).length < 1
               ? "Waiting for a human…"
               : `Start (${totalRounds} rounds)`}
@@ -206,14 +216,14 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
       {room.phase === "guess" && round && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds} · {answered.length}/{players.length} in
+            Round {room.round_idx + 1}/{totalRounds}
           </p>
           {botsReady && !botAnswer && botsOf(players).length > 0 && (
             <p className="text-lose text-center text-xs">
               Bots are guessing blind — the answer service is unavailable.
             </p>
           )}
-          <div className="rounded-2xl bg-card border-2 border-violet p-6 text-center">
+          <div className="neon-panel p-6 text-center">
             <h1 className="text-2xl font-extrabold">{round.q}</h1>
           </div>
           {seat.canPlay && seat.playerId && (
@@ -221,6 +231,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
               <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
             </div>
           )}
+          <LockInRow players={players} doneIds={answered.map((s) => s.player_id)} />
           <p className="text-fog text-center text-sm">
             Closest guess takes the round. Exact answer gets a bonus.
           </p>
@@ -231,45 +242,64 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds}
-          </p>
-          <div className="rounded-2xl bg-card border-2 border-win p-5 text-center">
-            <div className="text-fog text-sm">{round.q}</div>
-            <div className="text-4xl font-extrabold mt-1">
-              {round.answer.toLocaleString()} {round.unit}
-            </div>
-          </div>
-          <div className="rounded-xl bg-card border border-line p-3 text-sm flex flex-col gap-1">
-            {sortedResults.map((r, i) => (
-              <div key={r.player_id} className="flex justify-between gap-2">
-                <span className="font-semibold">
-                  {i === 0 && r.distance != null ? "🎯 " : ""}
-                  {r.name}
-                </span>
-                <span className="text-fog">
-                  {r.guess == null ? "no guess" : `${r.guess.toLocaleString()} (off by ${r.distance!.toLocaleString()})`}
-                </span>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4" style={EDGE_CLIP}>
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{totalRounds}
+            </p>
+            <div className="neon-panel p-5 text-center">
+              <div className="text-fog text-sm">{round.q}</div>
+              <div className="text-4xl font-extrabold mt-1">
+                {/* Counts up to the flag. Bank answers are whole numbers; anything
+                    else skips the count so rounding can't show a wrong answer. */}
+                <RollingNumber
+                  from={staged && Number.isInteger(round.answer) ? 0 : round.answer}
+                  value={round.answer}
+                  ms={REVEAL.flag}
+                  format={fmt}
+                  landAtEnd
+                />{" "}
+                {round.unit}
               </div>
-            ))}
+            </div>
+            <NumberLine answer={round.answer} unit={round.unit} results={phaseData.results ?? []} />
+            <Reveal
+              kind="rise"
+              delayMs={REVEAL.board}
+              className="rounded-xl bg-card border border-line p-3 text-sm flex flex-col gap-1.5"
+            >
+              {sortedResults.map((r) => (
+                <div key={r.player_id} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 min-w-0 font-semibold">
+                    <PlayerDot id={r.player_id} name={r.name} size="sm" />
+                    <span className="truncate">
+                      {r.distance != null && r.distance === bestDistance ? "🎯 " : ""}
+                      {r.name}
+                    </span>
+                  </span>
+                  <span className="text-fog text-right">
+                    {r.guess == null ? "no guess" : `${fmt(r.guess)} (off by ${r.distance!.toLocaleString()})`}
+                  </span>
+                </div>
+              ))}
+            </Reveal>
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
+            </BigBtn>
           </div>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <Link href="/ballpark/host" className="underline text-fog">
-            Play again with a new room
-          </Link>
+        <div style={EDGE_CLIP}>
+          <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+            <Link href="/ballpark/host" className="tv-hide underline text-fog">
+              Play again with a new room
+            </Link>
+          </FinalStandings>
         </div>
       )}
     </Shell>

@@ -5,10 +5,15 @@ import Link from "next/link";
 import { ChainRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
+import { LobbyWait, ResultCard, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { Confetti } from "@/app/components/Confetti";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import { playerKey } from "@/lib/rooms";
+import { useStaged } from "@/lib/motion";
 import { ChainBoard } from "@/app/chain/ChainBoard";
 import { RacePanel } from "@/app/chain/RacePanel";
 import { DuelPanel } from "@/app/chain/DuelPanel";
+import { REVEAL } from "@/app/chain/reveal";
 import {
   ChainSettings,
   ChainPhaseData,
@@ -53,6 +58,8 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
     ? `${room?.round_idx}-${duel.turn}-${JSON.stringify(duel.sides)}`
     : "off";
   const duelLeft = useCountdown(duelKey, duelSeconds, room?.phase === "duel" && !!duel);
+  // Same timing as the host screen; a refreshed phone gets the final state.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   if (error)
     return (
@@ -93,8 +100,15 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
   const rival = players.find((p) => p.id !== me.id);
   const rivalSide = rival ? (duel?.sides[rival.id] ?? FRESH_SIDE) : undefined;
 
+  // Keyed on the duel state, so it replays on every move:  a hit pops, a miss shakes.
+  // A long unbroken guess wraps instead of running off the screen (break-words
+  // is the fallback where "anywhere" isn't supported).
   const lastBanner = duel?.last && (
-    <p className="text-center text-sm pop-in">
+    <p
+      key={duelKey}
+      className={`text-center text-sm break-words ${duel.last.kind === "miss" ? "fx-shake" : "pop-in"}`}
+      style={{ overflowWrap: "anywhere" }}
+    >
       {duel.last.kind === "hit" && (
         <span className="text-win font-bold">
           ✓ {duel.last.name} got {duel.last.word}!
@@ -116,17 +130,17 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
   return (
     <Shell title={`Chain Gang · ${me.name}`} icon="⛓️">
       {room.phase === "lobby" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">⛓️</p>
-          <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
-          <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">
-            {mode === "duel"
-              ? `Head-to-head on your OWN chain: a miss shows one of your letters but hands over the turn. ${duelSeconds}s per turn — first to the bottom wins.`
-              : "Every word pairs with the one before it. First to the bottom wins."}
-          </p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
+        <LobbyWait
+          me={me}
+          players={players}
+          note={
+            <p className="max-w-sm text-fog text-sm">
+              {mode === "duel"
+                ? `Head-to-head on your OWN chain: a miss shows one of your letters but hands over the turn. ${duelSeconds}s per turn. First to the bottom wins.`
+                : "Every word pairs with the one before it. First to the bottom wins."}
+            </p>
+          }
+        />
       )}
 
       {room.phase === "solve" && round && (
@@ -168,7 +182,15 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
               </span>
             )}
           </p>
-          <ChainBoard words={myChain.words} solved={mySide.solved} reveal={mySide.reveal} />
+          {/* Lights up while it's this player's turn.  The wrapper is always
+              there (an invisible edge otherwise), so the board never remounts. */}
+          <div
+            className={`p-2 ${
+              duel.turn === me.id ? "neon-panel" : "rounded-2xl border border-transparent"
+            }`}
+          >
+            <ChainBoard words={myChain.words} solved={mySide.solved} reveal={mySide.reveal} />
+          </div>
           {duel.turn === me.id ? (
             <DuelPanel room={room} myRound={myChain} players={players} me={me} duel={duel} />
           ) : (
@@ -182,62 +204,85 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
       )}
 
       {room.phase === "reveal" && (
-        <div className="flex flex-col gap-4">
-          {mode === "race" && myResult && (
-            <div
-              className={`rounded-2xl p-5 text-center pop-in ${
-                phaseData.winner === me.name ? "bg-win text-[#03180b]" : "bg-card border border-line"
-              }`}
-            >
-              <div className="text-3xl font-extrabold">+{myResult.gained}</div>
-              <div className="font-semibold">{myResult.detail}</div>
-            </div>
-          )}
-          {mode === "race" && round && (
-            <ChainBoard words={round.words} solved={HIDDEN_WORDS} reveal={1} showAll />
-          )}
-          {mode === "duel" && phaseData.duel && (
-            <>
-              <h1 className="text-2xl font-extrabold text-center pop-in">
-                {phaseData.duel.winner === me.id
-                  ? "🏆 You finished your chain first!"
-                  : `${players.find((p) => p.id === phaseData.duel!.winner)?.name ?? "They"} finished first`}
-              </h1>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {players.map((p, seat) => {
-                  const chain = room.rounds[
-                    duelChainIdx(room.round_idx, seat)
-                  ] as ChainRound | undefined;
-                  if (!chain) return null;
-                  return (
-                    <div key={p.id} className="flex flex-col gap-2 rounded-xl border border-line p-2">
-                      <p className="text-center font-bold">
-                        {p.name}
-                        {phaseData.duel!.winner === p.id && " 🏆"}
-                      </p>
-                      <ChainBoard words={chain.words} solved={HIDDEN_WORDS} reveal={1} showAll />
-                    </div>
-                  );
-                })}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            {mode === "race" && (
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+                {phaseData.winner ? (
+                  <>
+                    <Stamp tone="gold" size="lg">
+                      Finish!
+                    </Stamp>
+                    <span className="font-display neon-text min-w-0 break-words text-2xl">
+                      {phaseData.winner}
+                    </span>
+                  </>
+                ) : (
+                  <Stamp tone="lose">Time!</Stamp>
+                )}
               </div>
-            </>
-          )}
-          <Leaderboard
-            players={players}
-            gains={mode === "race" ? gains : undefined}
-            highlightId={playerId}
-          />
-          <p className="text-fog text-sm text-center">Waiting for the host…</p>
-        </div>
+            )}
+            {mode === "race" && myResult && (
+              <ResultCard
+                tone={phaseData.winner === me.name ? "win" : "neutral"}
+                points={myResult.gained}
+                title={myResult.detail}
+                celebrate={phaseData.winner === me.name}
+                delayMs={REVEAL.card}
+              />
+            )}
+            {mode === "race" && round && (
+              <ChainBoard words={round.words} solved={HIDDEN_WORDS} reveal={1} showAll cascade />
+            )}
+            {mode === "duel" && phaseData.duel && (
+              <>
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <Stamp tone="gold" size="lg">
+                    Finish!
+                  </Stamp>
+                  {/* The winner line and the burst wait for the card beat, after the host's Finish stamp. */}
+                  <Reveal kind="slam" delayMs={REVEAL.card}>
+                    <h1 className="text-2xl font-extrabold">
+                      {phaseData.duel.winner === me.id
+                        ? "You finished your chain first!"
+                        : `${players.find((p) => p.id === phaseData.duel!.winner)?.name ?? "They"} finished first`}
+                    </h1>
+                  </Reveal>
+                  {phaseData.duel.winner === me.id && <Confetti pieces={30} delayMs={REVEAL.card} />}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {players.map((p, seat) => {
+                    const chain = room.rounds[
+                      duelChainIdx(room.round_idx, seat)
+                    ] as ChainRound | undefined;
+                    if (!chain) return null;
+                    return (
+                      <div key={p.id} className="flex flex-col gap-2 rounded-xl border border-line p-2">
+                        <p className="text-center font-bold">
+                          {p.name}
+                          {phaseData.duel!.winner === p.id && " 🏆"}
+                        </p>
+                        <ChainBoard words={chain.words} solved={HIDDEN_WORDS} reveal={1} showAll cascade />
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard
+                players={players}
+                gains={mode === "race" ? gains : undefined}
+                highlightId={playerId}
+              />
+            </Reveal>
+            <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-4 items-center">
-          <h1 className="text-3xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
-        </div>
+        <FinalStandings players={players} highlightId={playerId} size="phone" staged={staged} />
       )}
     </Shell>
   );

@@ -3,6 +3,17 @@
 import { useEffect, useState } from "react";
 import { Game, Card, Cell } from "@/lib/needle/types";
 import { checkWin } from "@/lib/needle/bingo";
+import { Stamp } from "@/app/components/fx";
+import { Confetti } from "@/app/components/Confetti";
+
+// Column header over the card, one arcade color per letter.
+const BINGO_HEAD = [
+  ["B", "text-glow"],
+  ["I", "text-violet"],
+  ["N", "text-gold"],
+  ["G", "text-pink"],
+  ["O", "text-cyan"],
+] as const;
 
 // One player's bingo card: marking, Novice strikes, Beginner auto-marks and
 // the "looks like BINGO" nudge. Shared by the phone view and the host screen,
@@ -64,12 +75,22 @@ export function BingoCard({ game, card }: { game: Game; card: Card }) {
   });
   const localWin = checkWin(card.grid, markedCallSet, game.pattern);
 
+  // Novice lives as hearts; the label keeps the count for screen readers.
+  const lives = Math.max(0, 3 - strikes);
   const diffLabel =
-    game.difficulty === "expert"
-      ? "Expert"
-      : game.difficulty === "novice"
-        ? `Novice · ${3 - strikes} ${3 - strikes === 1 ? "life" : "lives"}`
-        : "Beginner";
+    game.difficulty === "expert" ? (
+      "Expert"
+    ) : game.difficulty === "novice" ? (
+      <>
+        Novice ·{" "}
+        <span role="img" aria-label={`${lives} ${lives === 1 ? "life" : "lives"} left`}>
+          {"❤️".repeat(lives)}
+          {"🤍".repeat(3 - lives)}
+        </span>
+      </>
+    ) : (
+      "Beginner"
+    );
 
   return (
     <div className="flex flex-col gap-3">
@@ -83,7 +104,7 @@ export function BingoCard({ game, card }: { game: Game; card: Card }) {
             <span
               className={
                 game.difficulty === "novice" && strikes > 0
-                  ? "text-red-600"
+                  ? "text-lose"
                   : ""
               }
             >
@@ -93,7 +114,13 @@ export function BingoCard({ game, card }: { game: Game; card: Card }) {
         </div>
         <div className="text-right">
           <div className="text-xs text-zinc-500 uppercase">Songs played</div>
-          <div className="text-sm font-semibold">{game.called.length}</div>
+          {/* Re-keyed per song, so every phone gets a small "new song" pop. */}
+          <span
+            key={game.called.length}
+            className="fx-pop inline-block font-mono text-lg font-bold tabular-nums"
+          >
+            {game.called.length}
+          </span>
         </div>
       </div>
 
@@ -103,34 +130,57 @@ export function BingoCard({ game, card }: { game: Game; card: Card }) {
         </div>
       )}
 
-      <div className={`grid grid-cols-5 gap-1 ${isLocked ? "opacity-40" : ""}`}>
-        {card.grid.map((cell, i) => {
-          const isFree = "free" in cell;
-          const isMarked = marked.has(i) || isFree;
-          const shaking = shakeIdx === i;
-          return (
-            <button
-              key={i}
-              onClick={() => toggle(i)}
-              disabled={isLocked}
-              className={`aspect-square rounded text-[10px] sm:text-xs leading-tight p-1 flex items-center justify-center text-center font-medium border-2 transition
-                ${
-                  isMarked
-                    ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white"
-                    : "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
-                }
-                ${shaking ? "!bg-red-600 !text-white !border-red-700 animate-pulse" : ""}
-              `}
-            >
-              {isFree ? "FREE" : cell.name}
-            </button>
-          );
-        })}
+      <div className={`flex flex-col gap-1 ${isLocked ? "opacity-40" : ""}`}>
+        <div
+          aria-hidden
+          className="grid grid-cols-5 gap-1 text-center font-display text-2xl sm:text-3xl leading-none"
+        >
+          {BINGO_HEAD.map(([letter, color]) => (
+            <span key={letter} className={color}>
+              {letter}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-5 gap-1">
+          {card.grid.map((cell, i) => {
+            const isFree = "free" in cell;
+            const isMarked = marked.has(i) || isFree;
+            const shaking = shakeIdx === i;
+            return (
+              <button
+                key={i}
+                onClick={() => toggle(i)}
+                disabled={isLocked}
+                className={`press aspect-square rounded text-[10px] sm:text-xs leading-tight p-1 flex items-center justify-center text-center border-2 transition
+                  ${
+                    isFree
+                      ? "bg-ink text-gold border-gold font-bold"
+                      : isMarked
+                        ? "bg-violet text-white border-violet font-medium"
+                        : "bg-zinc-900 text-zinc-100 border-zinc-700 font-medium"
+                  }
+                  ${shaking ? "!bg-red-600 !text-white !border-red-700 fx-shake" : ""}
+                `}
+              >
+                {/* Keyed on the mark, so the dauber lands each time a square gets marked. */}
+                <span key={isMarked ? "on" : "off"} className={isMarked && !isFree ? "fx-dauber" : undefined}>
+                  {isFree ? "⭐ FREE" : cell.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {localWin && !isLocked && (
-        <div className="rounded-lg bg-yellow-300 text-black p-3 text-center font-bold">
-          Looks like BINGO! Show {card.label} to the host to verify.
+        <div className="neon-panel acc-gold p-4 flex flex-col items-center gap-2 text-center">
+          <Stamp tone="gold" size="lg">
+            Bingo?
+          </Stamp>
+          <div className="font-bold">
+            Looks like BINGO! Show {card.label} to the host to verify.
+          </div>
+          <Confetti pieces={24} />
         </div>
       )}
 

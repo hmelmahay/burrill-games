@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase, Game, Card } from "@/lib/needle/types";
 import { needleCardKey } from "@/lib/needle/cards";
 import { BingoCard } from "@/app/needle/BingoCard";
+import { Marquee } from "@/app/components/brand";
 
 export default function PlayCard({
   params,
@@ -76,7 +77,7 @@ export default function PlayCard({
   if (err)
     return (
       <main className="dark p-6 flex flex-col gap-4">
-        <p className="text-red-600">{err}</p>
+        <p className="text-lose">{err}</p>
         <Link href="/needle/play" className="underline">
           Back to join
         </Link>
@@ -85,14 +86,15 @@ export default function PlayCard({
   if (!game || !card)
     return (
       <main className="dark p-6">
-        <p>Loading…</p>
+        <p className="text-fog">Loading…</p>
       </main>
     );
 
+  // No winner here on purpose: the game row has no winner field.
   if (game.status === "ended")
     return (
-      <main className="dark flex flex-1 flex-col items-center justify-center gap-4 p-6">
-        <h1 className="text-3xl font-bold">Game over</h1>
+      <main className="dark flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+        <Marquee title="Game over" size="lg" burstKey="gameover" />
         <p className="text-zinc-500">The host ended the game.</p>
         <Link href="/" className="underline">
           Home
@@ -100,8 +102,11 @@ export default function PlayCard({
       </main>
     );
 
+  // No back link on purpose: marks live only in this page's state, so
+  // leaving would wipe them.
   return (
     <main className="dark flex flex-1 flex-col gap-3 p-3 max-w-md mx-auto w-full">
+      <Marquee icon="🎵" title="Needle Drop" sub={`Card ${card.label}`} className="self-center" />
       <BingoCard game={game} card={card} />
     </main>
   );

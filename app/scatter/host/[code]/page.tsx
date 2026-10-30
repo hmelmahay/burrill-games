@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, use, useEffect } from "react";
+import Link from "next/link";
 import { supabase, ScatterRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import {
@@ -12,6 +13,10 @@ import {
   PlayerChips,
   HostSeatCard,
 } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, SlotReel, Stamp } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { FX, stagger, type Tone } from "@/lib/fx";
+import { useStaged } from "@/lib/motion";
 import { judgeCellStates, JudgeOverride } from "@/lib/content/scatter";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/scatter/PlayerPanel";
@@ -50,6 +55,8 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
     roundSeconds,
     room?.phase === "write",
   );
+  // Play the letter reel, reveal and podium only for a screen that saw them start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   async function startGame() {
     if (!room) return;
@@ -169,11 +176,16 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
   if (error) return <Shell title="Scatter Sprint" icon="📝"><p className="text-lose">{error}</p></Shell>;
   if (!room) return <Shell title="Scatter Sprint" icon="📝"><p className="text-fog">Loading…</p></Shell>;
 
+  const results = phaseData.results ?? [];
   const gains: Record<string, number> = {};
-  (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  results.forEach((r) => (gains[r.player_id] = r.gained));
 
   return (
-    <Shell title="Scatter Sprint · host" icon="📝">
+    <Shell
+      title="Scatter Sprint · host"
+      icon="📝"
+      attractKey={room.phase === "lobby" ? players.length : undefined}
+    >
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -185,7 +197,11 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 2}>
+          <BigBtn
+            onClick={startGame}
+            disabled={busy || players.length < 2}
+            attention={players.length >= 2}
+          >
             {players.length < 2 ? "Need at least 2 players…" : `Start (${totalRounds} rounds)`}
           </BigBtn>
         </div>
@@ -194,12 +210,22 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
       {room.phase === "write" && round && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds} · {roundSubs.length}/{players.length} handed in
+            Round {room.round_idx + 1}/{totalRounds}
           </p>
-          <Countdown left={left} total={roundSeconds} />
-          <div className="rounded-2xl border-2 border-glow bg-card p-6 text-center">
+          <Countdown left={left} total={roundSeconds} doneLabel="Pencils down" />
+          <div className="neon-panel p-6 text-center">
             <div className="text-xs text-fog uppercase tracking-[0.3em]">The letter is</div>
-            <div className="text-7xl font-extrabold text-glow">{round.letter}</div>
+            {/* The reel rolls once, only on a screen that saw the round start.
+                Phones show the letter at once. */}
+            <RevealScope staged={staged}>
+              <div className="text-7xl font-extrabold text-glow">
+                <SlotReel
+                  key={room.round_idx}
+                  value={round.letter}
+                  seed={room.round_idx * 31 + round.letter.charCodeAt(0)}
+                />
+              </div>
+            </RevealScope>
           </div>
           {!seat.canPlay && (
             <ul className="rounded-xl bg-card border border-line divide-y divide-line">
@@ -231,129 +257,189 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
       )}
 
       {room.phase === "write" && round && (
-        <BigBtn onClick={startJudging} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
-          {left === 0 ? "Pencils down — judge answers" : "End round early"}
-        </BigBtn>
-      )}
-
-      {room.phase === "judge" && round && (
         <div className="flex flex-col gap-4">
-          <h1 className="text-xl font-extrabold text-center">
-            Judging — tap an answer to overrule the call
-          </h1>
-          <p className="text-fog text-sm text-center">
-            Letter {round.letter}. Duplicates cancel out live as you judge. Tap a
-            duplicate or wrong-letter answer to accept it anyway, tap a good answer
-            to reject it — tap again to undo. What you see here is exactly what
-            scores.
-          </p>
-          {round.categories.map((cat, ci) => (
-            <div key={ci} className="rounded-xl bg-card border border-line p-3">
-              <h2 className="font-bold mb-2">{cat}</h2>
-              <div className="flex flex-wrap gap-2">
-                {grid.map(({ player, answers }, pi) => {
-                  const a = answers[ci];
-                  const s = cellStates[pi]?.[ci] ?? "empty";
-                  const accepted = overrides.get(`${player.id}:${ci}`) === "accept";
-                  const styles: Record<CellState, string> = {
-                    empty: "opacity-30 border-line",
-                    invalid: "opacity-40 border-line line-through",
-                    dupe: "bg-glow/15 border-glow line-through",
-                    rejected: "bg-lose/30 border-lose line-through",
-                    ok: accepted
-                      ? "bg-win/20 border-win"
-                      : "border-line bg-ink",
-                  };
-                  const label: Record<CellState, string> = {
-                    empty: "",
-                    invalid: "wrong letter",
-                    dupe: "duplicate",
-                    rejected: "rejected",
-                    ok: accepted ? "✓ accepted" : `+${POINTS_PER_ANSWER}`,
-                  };
-                  return (
-                    <button
-                      key={player.id}
-                      onClick={() => tapCell(player.id, ci, s)}
-                      disabled={s === "empty"}
-                      className={`rounded-lg px-3 py-2 text-sm border text-left ${styles[s]}`}
-                    >
-                      <span className="block text-xs text-fog">{player.name}</span>
-                      {a.trim() || "—"}
-                      {label[s] && (
-                        <span
-                          className={`block text-xs ${
-                            s === "ok"
-                              ? "text-win"
-                              : s === "dupe"
-                                ? "text-glow"
-                                : "text-fog"
-                          }`}
-                        >
-                          {label[s]}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          <BigBtn onClick={finishJudging} disabled={busy}>
-            Score this round
+          <LockInRow players={players} doneIds={roundSubs.map((s) => s.player_id)} label="handed in" />
+          <BigBtn
+            onClick={startJudging}
+            disabled={busy}
+            color={left === 0 ? "glow" : "ghost"}
+            attention={left === 0}
+          >
+            {left === 0 ? "Pencils down — judge answers" : "End round early"}
           </BigBtn>
         </div>
+      )}
+
+      {/* Staged like a reveal: a screen that saw judging start stamps each call
+          (and every overrule after it); one that joined late shows them at rest. */}
+      {room.phase === "judge" && round && (
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            {seat.tv ? (
+              <>
+                {/* The host's overrules stay on the host screen until scoring,
+                    so this copy can only show the automatic calls. */}
+                <h1 className="text-xl font-extrabold text-center">
+                  The host is judging. Duplicates cancel out.
+                </h1>
+                <p className="text-fog text-sm text-center">
+                  Letter {round.letter}. These are the automatic calls, and the host can still overrule them.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-extrabold text-center">
+                  Judging — tap an answer to overrule the call
+                </h1>
+                <p className="text-fog text-sm text-center">
+                  Letter {round.letter}. Duplicates cancel out live as you judge. Tap a
+                  duplicate or wrong-letter answer to accept it anyway, tap a good answer
+                  to reject it — tap again to undo. What you see here is exactly what
+                  scores.
+                </p>
+              </>
+            )}
+            {round.categories.map((cat, ci) => (
+              <div key={ci} className="rounded-xl bg-card border border-line p-3">
+                <h2 className="font-bold mb-2">{cat}</h2>
+                <div className="flex flex-wrap gap-2">
+                  {grid.map(({ player, answers }, pi) => {
+                    const a = answers[ci];
+                    const s = cellStates[pi]?.[ci] ?? "empty";
+                    const accepted = overrides.get(`${player.id}:${ci}`) === "accept";
+                    const styles: Record<CellState, string> = {
+                      empty: "opacity-30 border-line",
+                      // Faded by color, not opacity, so its stamp stays readable.
+                      invalid: "border-line text-fog line-through",
+                      dupe: "bg-glow/15 border-glow line-through",
+                      rejected: "bg-lose/30 border-lose line-through",
+                      ok: accepted
+                        ? "bg-win/20 border-win"
+                        : "border-line bg-ink",
+                    };
+                    const verdict = s === "ok" ? (accepted ? ACCEPTED : null) : VERDICT[s];
+                    // Never wider than the card:  a 40-letter word wraps inside it.
+                    const chipClass = `max-w-full break-words rounded-lg px-3 py-2 text-sm border text-left ${styles[s]}`;
+                    const body = (
+                      <>
+                        <span className="block text-xs text-fog">{player.name}</span>
+                        {a.trim() || "—"}
+                        {verdict ? (
+                          <span className="block mt-1">
+                            {/* Keyed on the call, so every overrule stamps again. */}
+                            <Stamp key={s + (accepted ? "a" : "")} size="sm" tone={verdict.tone}>
+                              {verdict.label}
+                            </Stamp>
+                          </span>
+                        ) : (
+                          s === "ok" && (
+                            <span className="block text-xs text-win">+{POINTS_PER_ANSWER}</span>
+                          )
+                        )}
+                      </>
+                    );
+                    // A TV copy hides every button, so it shows the same chip as a div.
+                    return seat.tv ? (
+                      <div key={player.id} className={chipClass}>
+                        {body}
+                      </div>
+                    ) : (
+                      <button
+                        key={player.id}
+                        onClick={() => tapCell(player.id, ci, s)}
+                        disabled={s === "empty"}
+                        className={`${chipClass} press`}
+                      >
+                        {body}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <BigBtn onClick={finishJudging} disabled={busy}>
+              Score this round
+            </BigBtn>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Round {room.round_idx + 1}/{totalRounds} scored · letter {round.letter}
-          </p>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <details className="rounded-xl bg-card border border-line p-3">
-            <summary className="font-bold cursor-pointer">Answer breakdown</summary>
-            <div className="mt-2 flex flex-col gap-3">
-              {(phaseData.results ?? []).map((r) => (
-                <div key={r.player_id}>
-                  <h3 className="font-semibold text-sm">{r.name} · +{r.gained}</h3>
-                  <ul className="text-sm text-fog">
-                    {r.cells.map((cell, i) => (
-                      <li key={i} className="flex justify-between gap-2">
-                        <span className={cell.s === "ok" ? "" : "line-through opacity-60"}>
-                          {round.categories[i]}: {cell.a || "—"}
-                        </span>
-                        <span>
-                          {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
-                          {cell.s === "dupe" && "duplicate"}
-                          {cell.s === "invalid" && "wrong letter"}
-                          {cell.s === "rejected" && "rejected"}
-                          {cell.s === "empty" && ""}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </details>
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
-          </BigBtn>
-        </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Round {room.round_idx + 1}/{totalRounds} scored · letter {round.letter}
+            </p>
+            <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            {/* A TV copy shows the breakdown open under a plain heading, with
+                no disclosure for a tap or a remote to fold away. */}
+            {seat.tv ? (
+              <div className="rounded-xl bg-card border border-line p-3">
+                <h2 className="font-bold">Answer breakdown</h2>
+                <Breakdown results={results} categories={round.categories} />
+              </div>
+            ) : (
+              <details className="rounded-xl bg-card border border-line p-3">
+                <summary className="font-bold cursor-pointer">Answer breakdown</summary>
+                <Breakdown results={results} categories={round.categories} />
+              </details>
+            )}
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
+            </BigBtn>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <a href="/scatter/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+          <Link href="/scatter/host" className="tv-hide underline text-fog">
             Play again with a new room
-          </a>
-        </div>
+          </Link>
+        </FinalStandings>
       )}
     </Shell>
   );
 }
+
+// Every player's answers and calls for the round.  Rows rise in 60ms apart on
+// a screen that saw the reveal start.  A 40-letter word wraps inside its own
+// column, so the call beside it stays in the box.
+function Breakdown({ results, categories }: { results: ScatterResult[]; categories: string[] }) {
+  return (
+    <div className="mt-2 flex flex-col gap-3">
+      {results.map((r, ri) => (
+        <Reveal key={r.player_id} kind="rise" delayMs={stagger(ri, results.length, FX.stagger, 600)}>
+          <h3 className="font-semibold text-sm">{r.name} · +{r.gained}</h3>
+          <ul className="text-sm text-fog">
+            {r.cells.map((cell, i) => (
+              <li key={i} className="flex justify-between gap-2">
+                <span className={`min-w-0 break-words ${cell.s === "ok" ? "" : "line-through opacity-60"}`}>
+                  {categories[i]}: {cell.a || "—"}
+                </span>
+                <span className="shrink-0">
+                  {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
+                  {cell.s === "dupe" && "duplicate"}
+                  {cell.s === "invalid" && "wrong letter"}
+                  {cell.s === "rejected" && "rejected"}
+                  {cell.s === "empty" && ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
+      ))}
+    </div>
+  );
+}
+
+// The stamp each judged answer wears. A scoring answer the host left alone
+// keeps its plain "+100" instead.
+const VERDICT: Record<CellState, { label: string; tone: Tone } | null> = {
+  empty: null,
+  ok: null,
+  dupe: { label: "DUPE", tone: "glow" },
+  invalid: { label: "✗ LETTER", tone: "fog" },
+  rejected: { label: "NOPE", tone: "lose" },
+};
+const ACCEPTED: { label: string; tone: Tone } = { label: "✓ OK", tone: "win" };

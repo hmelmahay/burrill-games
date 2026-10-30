@@ -2,12 +2,24 @@
 
 import { useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
-import { supabase, Game, Card, Song } from "@/lib/needle/types";
+import { supabase, Game, Card, Song, Pattern } from "@/lib/needle/types";
 import { checkWin } from "@/lib/needle/bingo";
 import { claimCard, needleCardKey, needleNameKey } from "@/lib/needle/cards";
 import { YouTubePlayer, YouTubePlayerHandle } from "@/app/needle/YouTubePlayer";
 import { BingoCard } from "@/app/needle/BingoCard";
 import { useSpectator } from "@/lib/useSpectator";
+import { prefersReducedMotion } from "@/lib/motion";
+import { Marquee } from "@/app/components/brand";
+import { CodeBadge } from "@/app/components/ui";
+import { Stamp } from "@/app/components/fx";
+import { Confetti } from "@/app/components/Confetti";
+
+// How the win pattern reads on screen (the stored value is e.g. "fourcorners").
+const PATTERN_LABEL: Record<Pattern, string> = {
+  line: "Line",
+  fourcorners: "Four corners",
+  blackout: "Blackout",
+};
 
 export default function HostGame({
   params,
@@ -428,6 +440,7 @@ export default function HostGame({
   // restores autoplay (if it was on) and rolls straight into the next song.
   const wasAutoplayRef = useRef(false);
   const verifySectionRef = useRef<HTMLElement | null>(null);
+  const verdictRef = useRef<HTMLDivElement | null>(null);
 
   function pauseForBingo() {
     wasAutoplayRef.current = autoplayRef.current;
@@ -439,6 +452,21 @@ export default function HostGame({
     setPaused(true);
     setTimeout(
       () => verifySectionRef.current?.scrollIntoView({ behavior: "smooth" }),
+      50,
+    );
+  }
+
+  // Display only.  With a card on the host the titles are hidden, the page is
+  // short, and the verdict renders below a laptop's fold.  Bring it into view
+  // once it has rendered (a no-op when it is already on screen).
+  function checkCard(id: string) {
+    setVerifyId(id);
+    setTimeout(
+      () =>
+        verdictRef.current?.scrollIntoView({
+          block: "nearest",
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+        }),
       50,
     );
   }
@@ -468,7 +496,7 @@ export default function HostGame({
   if (!game)
     return (
       <main className="dark p-6">
-        <p>Loading game…</p>
+        <p className="text-fog">Loading game…</p>
       </main>
     );
 
@@ -479,27 +507,31 @@ export default function HostGame({
 
   return (
     <main className={`dark flex flex-1 flex-col gap-4 p-4 max-w-3xl mx-auto w-full ${tv ? "tv-mode" : ""}`}>
-      <div className="flex items-baseline justify-between">
-        <Link href="/needle/host" className="text-sm underline">
-          ← Pools
+      <div className="flex items-center gap-2">
+        <Link
+          href="/needle/host"
+          aria-label="Back to pools"
+          className="tv-hide shrink-0 px-1 text-sm text-fog"
+        >
+          ←<span className="hidden sm:inline"> Pools</span>
         </Link>
-        <span className="text-sm text-zinc-500">
-          {game.status === "ended" ? "ENDED" : "live"} · {game.pattern}
-        </span>
+        <Marquee
+          icon="🎵"
+          title="Needle Drop"
+          sub={
+            game.status === "ended"
+              ? "Ended"
+              : `Live · ${PATTERN_LABEL[game.pattern] ?? game.pattern}`
+          }
+          className="min-w-0"
+        />
       </div>
 
-      <div className="rounded-2xl border-2 border-black dark:border-white p-4 text-center">
-        <div className="text-sm text-zinc-500 uppercase tracking-wider">
-          Join code
-        </div>
-        <div className="text-6xl font-bold font-mono tracking-widest">
-          {game.code}
-        </div>
-      </div>
+      <CodeBadge code={game.code} />
 
       {!tv && !myCard && game.status !== "ended" && (
-        <div className="rounded-2xl border-2 border-indigo-500 p-3 flex flex-col gap-2">
-          <div className="font-semibold">🎟️ Playing too?</div>
+        <div className="rounded-2xl border-2 border-violet bg-card/60 p-4 flex flex-col gap-2">
+          <div className="font-bold">🎟️ Playing too?</div>
           <div className="flex gap-2">
             <input
               value={seatName}
@@ -508,48 +540,52 @@ export default function HostGame({
               placeholder="Your name"
               maxLength={20}
               autoComplete="off"
-              className="min-w-0 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2"
+              className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2"
             />
             <button
               onClick={takeCard}
               disabled={seatBusy || !seatName.trim()}
-              className="shrink-0 rounded-lg bg-indigo-600 text-white px-4 py-2 font-semibold disabled:opacity-40"
+              className="coin-btn coin-violet shrink-0 disabled:opacity-40"
             >
-              {seatBusy ? "Dealing…" : "Get a card"}
+              <span className="coin-face px-4 py-2">
+                {seatBusy ? "Dealing…" : "Get a card"}
+              </span>
             </button>
           </div>
           <div className="text-xs text-zinc-500">
             Play a card right on this screen. Song titles hide while you play so
             you&apos;re listening like everyone else.
           </div>
-          {seatErr && <p className="text-red-600 text-sm">{seatErr}</p>}
+          {seatErr && <p className="text-lose text-sm">{seatErr}</p>}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={toggleManualMode}
-          className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-            manualMode
-              ? "bg-indigo-600 text-white"
-              : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-          }`}
-        >
-          {manualMode ? "✅ Manual mode (Spotify etc.)" : "Manual mode OFF"}
-        </button>
-        {!manualMode && (
+      {!tv && (
+        <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={toggleAudioDevice}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-              isAudioDevice
-                ? "bg-emerald-600 text-white"
-                : "bg-zinc-800 text-zinc-100 border border-zinc-600"
+            onClick={toggleManualMode}
+            className={`press rounded-lg px-3 py-2 text-sm font-semibold ${
+              manualMode
+                ? "bg-indigo-600 text-white"
+                : "bg-zinc-800 text-zinc-300"
             }`}
           >
-            {isAudioDevice ? "🔊 Plays audio" : "📱 Remote only"}
+            {manualMode ? "✅ Manual mode (Spotify etc.)" : "Manual mode OFF"}
           </button>
-        )}
-      </div>
+          {!manualMode && (
+            <button
+              onClick={toggleAudioDevice}
+              className={`press rounded-lg px-3 py-2 text-sm font-semibold ${
+                isAudioDevice
+                  ? "bg-emerald-600 text-white"
+                  : "bg-zinc-800 text-zinc-100 border border-zinc-600"
+              }`}
+            >
+              {isAudioDevice ? "🔊 Plays audio" : "📱 Remote only"}
+            </button>
+          )}
+        </div>
+      )}
 
       {!tv && !manualMode && isAudioDevice && (
         // Keep the YT player mounted for mixed pools, but only show it when a
@@ -569,8 +605,8 @@ export default function HostGame({
         </div>
       )}
 
-      {manualMode && (
-        <div className="rounded-lg border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 p-3 flex flex-col gap-2">
+      {!tv && manualMode && (
+        <div className="rounded-lg border-2 border-indigo-500 bg-indigo-950/40 p-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="font-semibold text-sm">
               Tap a song when you play it on Spotify
@@ -583,7 +619,7 @@ export default function HostGame({
             value={manualSearch}
             onChange={(e) => setManualSearch(e.target.value)}
             placeholder="Filter…"
-            className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-base sm:text-sm"
           />
           <div className="grid grid-cols-1 gap-1 max-h-80 overflow-y-auto">
             {game.play_order
@@ -596,7 +632,7 @@ export default function HostGame({
                 <button
                   key={s.id}
                   onClick={() => markCalled(s.id)}
-                  className="text-left rounded bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900"
+                  className="text-left rounded bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm hover:bg-indigo-900"
                 >
                   {s.name}
                 </button>
@@ -606,7 +642,7 @@ export default function HostGame({
       )}
 
       {unplayableMsg && (
-        <div className="rounded-lg bg-amber-100 dark:bg-amber-950 border border-amber-400 text-amber-900 dark:text-amber-200 p-2 text-sm flex items-center justify-between">
+        <div className="rounded-lg bg-amber-950 border border-amber-400 text-amber-200 p-2 text-sm flex items-center justify-between">
           <span>⚠️ {unplayableMsg} Hit Next.</span>
           <button
             onClick={() => setUnplayableMsg(null)}
@@ -626,27 +662,39 @@ export default function HostGame({
         </button>
       )}
 
-      <div className="rounded-lg bg-zinc-100 dark:bg-zinc-900 p-3 flex items-center justify-between">
-        <div>
-          <div className="text-xs uppercase text-zinc-500">Now playing</div>
-          <div className="font-semibold">
-            {!lastCalled
-              ? "—"
-              : hideTitles
-                ? "🎵 Listen closely…"
-                : songsById[lastCalled]?.name ?? lastCalled}
+      {/* Below sm the controls wrap onto their own row when the title needs the
+          room, so a long title gets the panel's full width instead of about 100px. */}
+      <div className="neon-panel p-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Spins only while a clip plays on this device; never on a TV copy. */}
+          <span
+            aria-hidden
+            className={`fx-vinyl attract text-3xl leading-none ${countdown > 0 ? "is-spinning" : ""}`}
+          >
+            💿
+          </span>
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-wider text-fog">Now playing</div>
+            <div className="text-lg font-bold break-words">
+              {!lastCalled
+                ? "Waiting for the first song"
+                : hideTitles
+                  ? "🎵 Listen closely…"
+                  : songsById[lastCalled]?.name ?? lastCalled}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3 shrink-0">
           {myCard && titlesAreAnswers && (
             <button
               onClick={() => setPeekTitles((v) => !v)}
-              className="rounded-md border border-zinc-400 dark:border-zinc-600 px-2 py-1 text-xs"
+              className="rounded-md border border-zinc-600 px-2 py-1 text-xs"
             >
               {peekTitles ? "🙈 Hide titles" : "👁 Show titles"}
             </button>
           )}
-          <div className="text-3xl font-mono">{countdown}s</div>
+          {/* The clip timer runs on this device only, so a TV copy would sit at 0s. */}
+          {!tv && <div className="text-3xl font-mono tabular-nums">{countdown}s</div>}
         </div>
       </div>
 
@@ -656,151 +704,167 @@ export default function HostGame({
         </section>
       )}
 
-      <div className="flex items-center justify-between rounded-lg border border-zinc-300 dark:border-zinc-700 p-2 gap-3">
-        <button
-          onClick={toggleAutoplay}
-          disabled={game.status === "ended"}
-          className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
-            autoplay
-              ? "bg-purple-600 text-white"
-              : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-          }`}
-        >
-          {autoplay ? "▶ Autoplay ON" : "Autoplay OFF"}
-        </button>
-        <label className="text-xs flex items-center gap-1 text-zinc-500">
-          Gap:
-          <select
-            value={gapSeconds}
-            onChange={(e) => setGapSeconds(Number(e.target.value))}
-            className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-1 py-0.5"
-          >
-            <option value={2}>2s</option>
-            <option value={3}>3s</option>
-            <option value={5}>5s</option>
-            <option value={8}>8s</option>
-            <option value={10}>10s</option>
-          </select>
-        </label>
-      </div>
-
-      {!paused ? (
-        <button
-          onClick={pauseForBingo}
-          disabled={game.status === "ended"}
-          className="rounded-lg bg-amber-500 text-black py-4 font-bold text-lg disabled:opacity-40"
-        >
-          ⏸ BINGO! — pause &amp; verify
-        </button>
-      ) : (
-        <div className="rounded-lg border-2 border-amber-500 bg-amber-100 dark:bg-amber-950/60 p-3 flex items-center justify-between gap-3">
-          <span className="font-bold text-amber-800 dark:text-amber-200">
-            ⏸ Paused — check the claimed card below.
-          </span>
+      {!tv && (
+        <div className="flex items-center justify-between rounded-lg border border-zinc-700 p-2 gap-3">
           <button
-            onClick={resumeAfterBingo}
-            className="rounded-md bg-green-600 text-white px-4 py-2 font-semibold shrink-0"
+            onClick={toggleAutoplay}
+            disabled={game.status === "ended"}
+            className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+              autoplay
+                ? "bg-purple-600 text-white"
+                : "bg-zinc-800 text-zinc-300"
+            }`}
           >
-            ▶ Resume
+            {autoplay ? "▶ Autoplay ON" : "Autoplay OFF"}
           </button>
+          <label className="text-xs flex items-center gap-1 text-zinc-500">
+            Gap:
+            {/* 16px on phones:  iOS zooms the page into a smaller control. */}
+            <select
+              value={gapSeconds}
+              onChange={(e) => setGapSeconds(Number(e.target.value))}
+              className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-base sm:text-xs"
+            >
+              <option value={2}>2s</option>
+              <option value={3}>3s</option>
+              <option value={5}>5s</option>
+              <option value={8}>8s</option>
+              <option value={10}>10s</option>
+            </select>
+          </label>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={nextSong}
-          disabled={!nextId || game.status === "ended"}
-          className="rounded-lg bg-green-600 text-white py-4 font-semibold disabled:opacity-40"
-        >
-          Next song
-        </button>
-        <button
-          onClick={replay}
-          disabled={!lastCalled}
-          className="rounded-lg bg-blue-600 text-white py-4 font-semibold disabled:opacity-40"
-        >
-          Replay clip
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={skipLast}
-          disabled={!lastCalled}
-          className="rounded-lg border-2 border-amber-500 text-amber-600 py-2 text-sm font-semibold disabled:opacity-40"
-        >
-          ⤺ Skip / undo
-        </button>
-        <button
-          onClick={deleteCurrent}
-          disabled={!lastCalled}
-          className="rounded-lg border-2 border-red-500 text-red-600 py-2 text-sm font-semibold disabled:opacity-40"
-        >
-          🗑 Delete this song
-        </button>
-      </div>
-      <button
-        onClick={endGame}
-        disabled={game.status === "ended"}
-        className="rounded-lg border border-red-600 text-red-600 py-2 text-sm disabled:opacity-40"
-      >
-        End game
-      </button>
-
-      <section ref={verifySectionRef}>
-        <h2 className="font-semibold mb-1">
-          Verify a winner ({cards.filter((c) => c.claimed).length} cards claimed)
-        </h2>
-        <div className="grid grid-cols-4 gap-2">
-          {cards.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setVerifyId(c.id)}
-              className={`rounded border p-2 text-sm ${
-                c.claimed
-                  ? "border-black dark:border-white"
-                  : "border-zinc-300 dark:border-zinc-700 opacity-50"
-              } ${verifyId === c.id ? "bg-yellow-100 dark:bg-yellow-900" : ""}`}
-            >
-              <div className="font-bold">{c.label}</div>
-              <div className="text-xs truncate">
-                {c.player_name ?? "unclaimed"}
-              </div>
+      {!tv &&
+        (!paused ? (
+          <button
+            onClick={pauseForBingo}
+            disabled={game.status === "ended"}
+            className="coin-btn coin-glow disabled:opacity-40"
+          >
+            <span className="coin-face py-4 text-lg">⏸ BINGO! Pause &amp; verify</span>
+          </button>
+        ) : (
+          <div className="rounded-lg border-2 border-amber-500 bg-amber-950/60 p-3 flex items-center justify-between gap-3">
+            <span className="font-bold text-amber-200">
+              ⏸ Paused. Check the claimed card below.
+            </span>
+            <button onClick={resumeAfterBingo} className="coin-btn coin-win shrink-0">
+              <span className="coin-face px-4 py-2">▶ Resume</span>
             </button>
-          ))}
-        </div>
-        {verifyCard && (
-          <div className="mt-3 flex flex-col gap-2">
-            <div
-              className={`rounded p-2 font-bold text-center ${
-                verifyResult
-                  ? "bg-green-600 text-white"
-                  : "bg-red-600 text-white"
-              }`}
-            >
-              {verifyCard.label} · {verifyCard.player_name ?? "unclaimed"} ·{" "}
-              {verifyResult ? "WINNER ✓" : "not a win"}
-            </div>
-            <div className="grid grid-cols-5 gap-1">
-              {verifyCard.grid.map((cell, i) => {
-                const isFree = "free" in cell;
-                const lit = isFree || game.called.includes(cell.youtube_id);
-                return (
-                  <div
-                    key={i}
-                    className={`aspect-square text-[10px] p-1 flex items-center justify-center text-center rounded ${
-                      lit
-                        ? "bg-green-500 text-white"
-                        : "bg-zinc-200 dark:bg-zinc-800"
-                    }`}
-                  >
-                    {isFree ? "FREE" : cell.name}
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        )}
-      </section>
+        ))}
+
+      {!tv && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={nextSong}
+              disabled={!nextId || game.status === "ended"}
+              className="coin-btn coin-win disabled:opacity-40"
+            >
+              <span className="coin-face py-4">Next song</span>
+            </button>
+            <button
+              onClick={replay}
+              disabled={!lastCalled}
+              className="coin-btn coin-violet disabled:opacity-40"
+            >
+              <span className="coin-face py-4">Replay clip</span>
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={skipLast}
+              disabled={!lastCalled}
+              className="coin-btn coin-ghost disabled:opacity-40"
+            >
+              <span className="coin-face py-2 text-sm">⤺ Skip / undo</span>
+            </button>
+            <button
+              onClick={deleteCurrent}
+              disabled={!lastCalled}
+              className="coin-btn coin-ghost disabled:opacity-40"
+            >
+              <span className="coin-face py-2 text-sm text-lose border-lose">
+                🗑 Delete this song
+              </span>
+            </button>
+          </div>
+          <button
+            onClick={endGame}
+            disabled={game.status === "ended"}
+            className="press rounded-lg border border-lose text-lose py-2 text-sm disabled:opacity-40"
+          >
+            End game
+          </button>
+        </>
+      )}
+
+      {!tv && (
+        <section ref={verifySectionRef}>
+          <h2 className="font-semibold mb-1">
+            Verify a winner ({cards.filter((c) => c.claimed).length} cards claimed)
+          </h2>
+          <div className="grid grid-cols-4 gap-2">
+            {cards.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => checkCard(c.id)}
+                className={`press rounded border p-2 text-sm ${
+                  c.claimed ? "border-white" : "border-zinc-700 opacity-50"
+                } ${verifyId === c.id ? "bg-yellow-900" : ""}`}
+              >
+                <div className="font-bold">{c.label}</div>
+                <div className="text-xs truncate">
+                  {c.player_name ?? "unclaimed"}
+                </div>
+              </button>
+            ))}
+          </div>
+          {verifyCard && (
+            // overflow-x-clip:  the Winner stamp enters at 2x and must not widen
+            // a 375 host screen.  -mx-4 px-4 put the clip at the page edge.
+            <div className="-mx-4 mt-3 flex flex-col gap-2 overflow-x-clip px-4">
+              <div
+                ref={verdictRef}
+                className={`scroll-mb-4 rounded-xl border-2 bg-card p-3 flex flex-col items-center gap-2 text-center ${
+                  verifyResult ? "border-win" : "border-lose"
+                }`}
+              >
+                <div className="font-bold">
+                  {verifyCard.label} · {verifyCard.player_name ?? "unclaimed"}
+                </div>
+                {verifyResult ? (
+                  // Keyed so each newly checked winning card stamps again.
+                  <Stamp key={verifyId} tone="win" size="lg">
+                    Winner ✓
+                  </Stamp>
+                ) : (
+                  <div className="font-bold text-lose">Not a win</div>
+                )}
+              </div>
+              {verifyResult && <Confetti key={verifyId} />}
+              <div className="grid grid-cols-5 gap-1">
+                {verifyCard.grid.map((cell, i) => {
+                  const isFree = "free" in cell;
+                  const lit = isFree || game.called.includes(cell.youtube_id);
+                  return (
+                    <div
+                      key={i}
+                      className={`aspect-square text-[10px] p-1 flex items-center justify-center text-center rounded ${
+                        lit ? "bg-win text-ink font-semibold" : "bg-zinc-800"
+                      }`}
+                    >
+                      {isFree ? "FREE" : cell.name}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section>
         <h2 className="font-semibold mb-1">
