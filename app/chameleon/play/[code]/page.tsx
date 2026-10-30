@@ -90,7 +90,10 @@ export default function ChameleonPlay({ params }: { params: Promise<{ code: stri
 
       {room.phase === "reveal" && round && (
         <RevealScope staged={staged}>
-          <div className="flex flex-col gap-4">
+          {/* overflow-x-clip:  the outcome and result cards wait at 1.8x for their
+              slams and must not widen the phone screen.  -mx-4 px-4 put the clip
+              at the Shell's edge. */}
+          <div className="-mx-4 flex flex-col gap-4 overflow-x-clip px-4">
             <Drumroll ms={REVEAL.drum} tease={<span className="block text-center">{revealTease(phaseData.caught)}</span>}>
               <div
                 className={`rounded-2xl border-2 p-4 text-center ${

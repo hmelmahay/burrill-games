@@ -65,7 +65,9 @@ export default function TTPlay({ params }: { params: Promise<{ code: string }> }
 
       {room.phase === "reveal" && round && (
         <RevealScope staged={staged}>
-          <div className="flex flex-col gap-4">
+          {/* overflow-x-clip:  the result card waits at 1.8x for its slam and must
+              not widen the phone screen.  -mx-4 px-4 put the clip at the Shell's edge. */}
+          <div className="-mx-4 flex flex-col gap-4 overflow-x-clip px-4">
             <Verdicts
               statements={phaseData.statements ?? []}
               lie={phaseData.lie}
