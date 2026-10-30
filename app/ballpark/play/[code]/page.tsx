@@ -12,6 +12,7 @@ import { playerKey } from "@/lib/rooms";
 import { BallparkPhaseData } from "@/app/ballpark/constants";
 import { PlayerPanel } from "@/app/ballpark/PlayerPanel";
 import { EDGE_CLIP, REVEAL } from "@/app/ballpark/reveal";
+import { formatterFor } from "@/app/ballpark/format";
 
 export default function BallparkPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -52,6 +53,8 @@ export default function BallparkPlay({ params }: { params: Promise<{ code: strin
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  // Years print as 1903, not 1,903.
+  const fmt = formatterFor(round);
 
   return (
     <Shell title={`Ballpark · ${me.name}`} icon="🎯">
@@ -77,26 +80,28 @@ export default function BallparkPlay({ params }: { params: Promise<{ code: strin
                   from={staged && Number.isInteger(round.answer) ? 0 : round.answer}
                   value={round.answer}
                   ms={REVEAL.flag}
+                  format={fmt}
                 />{" "}
                 {round.unit}
               </div>
             </div>
+            {/* The card and the board wait past the host's flag (see reveal.ts). */}
             {myResult && (
               <ResultCard
                 tone={myResult.gained >= 500 ? "win" : "neutral"}
                 points={myResult.gained}
                 celebrate={myResult.distance === 0}
-                delayMs={REVEAL.flag}
+                delayMs={REVEAL.phoneCard}
                 title={
                   myResult.guess == null
                     ? "No guess in time"
                     : myResult.distance === 0
                       ? "DEAD ON. Are you psychic?"
-                      : `You said ${myResult.guess.toLocaleString()}, off by ${myResult.distance!.toLocaleString()}`
+                      : `You said ${fmt(myResult.guess)}, off by ${myResult.distance!.toLocaleString()}`
                 }
               />
             )}
-            <Reveal kind="fade" delayMs={REVEAL.board}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             <p className="text-fog text-sm text-center">Waiting for the host…</p>

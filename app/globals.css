@@ -55,7 +55,9 @@ body {
    Overridable classes live in @layer components (a Tailwind utility on the
    same element still wins). Plain rules at the bottom are guards only.
    Do not add @layer-less component classes, `inset`, :is/:where/:has,
-   color-mix or var() inside @keyframes. */
+   color-mix or var() inside @keyframes.  Writing all four of top/right/
+   bottom/left in one rule isn't enough:  the CSS build folds them back into
+   `inset`, which older TV engines ignore.  Use top + left + width + height. */
 /* ===== keyframes: literal values, transform + opacity only ===== */
 @keyframes popIn { 0% { opacity: 0; transform: scale(0.8); } 60% { opacity: 1; transform: scale(1.04); } 100% { opacity: 1; transform: none; } }
 .pop-in { animation: popIn 0.3s ease-out; }
@@ -72,7 +74,6 @@ body {
 @keyframes fxBarY { from { transform: scaleY(0); } to { transform: none; } }
 @keyframes fxShake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
 @keyframes fxTick { from { transform: scale(1.35); } to { transform: none; } }
-@keyframes fxScoreUp { 0% { opacity: 0; transform: translateY(14px) scale(0.9); } 55% { opacity: 1; transform: translateY(-3px) scale(1.08); } 100% { opacity: 1; transform: none; } }
 @keyframes fxLedOn { 0% { opacity: 0.3; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.2); } 100% { opacity: 1; transform: none; } }
 @keyframes fxDauber { 0% { opacity: 0.3; transform: scale(1.35); } 60% { opacity: 1; transform: scale(0.94); } 100% { opacity: 1; transform: none; } }
 @keyframes fxNeonOn { 0% { opacity: 0; } 12% { opacity: 0.9; } 18% { opacity: 0.3; } 30%, 100% { opacity: 1; } }
@@ -151,6 +152,8 @@ body {
   .cabinet-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 3rem; height: 3rem; border-radius: 0.9rem; font-size: 1.75rem; background: var(--fx-acc-soft, rgba(255, 159, 28, 0.12)); border: 1px solid var(--fx-acc, #ff9f1c); }
   /* Big focus ring for TV remotes on /tv. */
   .remote-focus:focus { outline: 5px solid #ffd166; outline-offset: 4px; }
+  /* A mouse click shows no ring.  An engine without :focus-visible drops only this rule and keeps it. */
+  .remote-focus:focus:not(:focus-visible) { outline: none; }
 
   /* ----- marquee sign (Marquee component) ----- */
   .marquee { position: relative; display: inline-flex; align-items: center; max-width: 100%; padding: 0.3rem 0.85rem 0.3rem 0.35rem; border-radius: 999px; background: #0d1026; border: 2px solid var(--fx-acc, #ff9f1c); box-shadow: 0 0 14px var(--fx-acc-glow, rgba(255, 159, 28, 0.55)); }
@@ -160,7 +163,7 @@ body {
   .marquee-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.9em; height: 1.9em; margin-right: 0.5rem; border-radius: 999px; background: var(--fx-acc-soft, rgba(255, 159, 28, 0.12)); border: 1px solid var(--fx-acc, #ff9f1c); }
   .marquee-title { font-family: var(--font-bungee, "Arial Black"), "Arial Black", Impact, sans-serif; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.1; color: var(--fx-acc-core, #ffd29a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .marquee-sub { margin-left: 0.5rem; font-size: 0.75em; color: #9aa0c8; white-space: nowrap; }
-  .marquee-bulbs { position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; }
+  .marquee-bulbs { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   .marquee-bulbs::before, .marquee-bulbs::after { content: ""; position: absolute; left: 14px; right: 14px; height: 4px; background-image: radial-gradient(circle, var(--fx-acc-core, #ffd29a) 1.5px, rgba(0, 0, 0, 0) 2px); background-size: 10px 4px; background-repeat: repeat-x; }
   .marquee-bulbs::before { top: -3px; }
   .marquee-bulbs::after { bottom: -3px; background-position: 5px 0; }
@@ -184,7 +187,7 @@ body {
   .coin-win .coin-face { background: #2ecc71; color: #03180b; --fx-lip: #1b7f45; }
   .coin-lose .coin-face { background: #e74c3c; color: #ffffff; --fx-lip: #9b2c21; }
   .coin-ghost .coin-face { background: #0d1026; color: #9aa0c8; border: 2px solid #2a3060; --fx-lip: #1d2247; }
-  .fx-attention .coin-face::before { content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: inherit; box-shadow: inset 0 0 0 3px #ffd166, inset 0 0 16px rgba(255, 209, 102, 0.6); opacity: 0; pointer-events: none; animation: fxBreathe 0.8s ease-in-out 3; }
+  .fx-attention .coin-face::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: inherit; box-shadow: inset 0 0 0 3px #ffd166, inset 0 0 16px rgba(255, 209, 102, 0.6); opacity: 0; pointer-events: none; animation: fxBreathe 0.8s ease-in-out 3; }
   /* Tiles and vote buttons: instant darken on press, no transform, no transition. */
   .press { -webkit-tap-highlight-color: transparent; }
   .press:active:not(:disabled) { filter: brightness(0.88); }
@@ -192,7 +195,7 @@ body {
   /* ----- join code ----- */
   .code-tiles { display: flex; justify-content: center; }
   .code-tile { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.35em; margin: 0 0.06em; border-radius: 0.18em; background: #0d1026; border: 2px solid #ff9f1c; box-shadow: 0 4px 0 #a35f00, 0 0 18px rgba(255, 159, 28, 0.35); color: #ff9f1c; font-family: var(--font-mono, ui-monospace, monospace); font-weight: 800; animation: popIn 0.3s ease-out backwards; }
-  .code-ring { position: absolute; top: -2px; right: -2px; bottom: -2px; left: -2px; border-radius: inherit; box-shadow: 0 0 28px rgba(255, 159, 28, 0.55); pointer-events: none; }
+  .code-ring { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); border-radius: inherit; box-shadow: 0 0 28px rgba(255, 159, 28, 0.55); pointer-events: none; }
   .code-ring.attract { animation: fxBreathe 2.4s ease-in-out 2; }
 
   /* ----- timers ----- */
@@ -210,7 +213,6 @@ body {
   .rank-3 { background: #e8955f; }
   .gain-chip { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.8rem; font-weight: 800; color: #2ecc71; background: rgba(46, 204, 113, 0.14); }
   .gain-chip.is-neg { color: #e74c3c; background: rgba(231, 76, 60, 0.14); }
-  .gain-chip.fx-in { animation: fxScoreUp 0.45s ease-out backwards; }
 
   /* ----- players ----- */
   .player-dot { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.6em; height: 1.6em; border-radius: 999px; color: #1a1000; font-weight: 800; font-size: 0.8em; line-height: 1; }
@@ -238,7 +240,8 @@ body {
   .stamp.tone-pink { color: #ff4fd8; }
   .stamp.tone-cyan { color: #2de2e6; }
   .stamp.tone-fog { color: #9aa0c8; }
-  .tile-correct { position: absolute; top: -4px; right: -4px; bottom: -4px; left: -4px; border-radius: 1rem; border: 4px solid #2ecc71; box-shadow: 0 0 22px rgba(46, 204, 113, 0.6); pointer-events: none; animation: fxNeonOn 0.7s linear backwards; }
+  /* Rests lit.  A staged reveal adds .fx-neon-on, so a late screen doesn't flicker. */
+  .tile-correct { position: absolute; top: -4px; left: -4px; width: calc(100% + 8px); height: calc(100% + 8px); border-radius: 1rem; border: 4px solid #2ecc71; box-shadow: 0 0 22px rgba(46, 204, 113, 0.6); pointer-events: none; }
 
   /* ----- one-shot entrances: rest visible, hidden during their delay (backwards fill) ----- */
   .fx-rise { animation: fxRise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
@@ -259,10 +262,10 @@ body {
 
   /* ----- overlays that rest invisible (no fill) ----- */
   .fx-ring { position: absolute; top: 50%; left: 50%; width: 2.75rem; height: 2.75rem; margin: -1.375rem 0 0 -1.375rem; border-radius: 999px; border: 3px solid #ffd166; opacity: 0; pointer-events: none; animation: fxRingBurst 0.8s ease-out 2; }
-  .fx-drum { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; animation-name: fxDrum; animation-timing-function: linear; }
+  .fx-drum { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; animation-name: fxDrum; animation-timing-function: linear; }
   .fx-cycle { position: relative; display: inline-block; }
   .fx-cycle-copy { position: absolute; top: 0; left: 0; opacity: 0; animation: fxFlash 1.2s linear 3; }
-  .fx-confetti { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; pointer-events: none; z-index: 60; }
+  .fx-confetti { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; z-index: 60; }
   .fx-confetto { position: absolute; top: 0; border-radius: 2px; opacity: 0; animation-timing-function: cubic-bezier(0.25, 0.6, 0.45, 1); }
   .fx-c1 { animation-name: fxConfetti1; }
   .fx-c2 { animation-name: fxConfetti2; }

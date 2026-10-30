@@ -101,8 +101,14 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
   const rivalSide = rival ? (duel?.sides[rival.id] ?? FRESH_SIDE) : undefined;
 
   // Keyed on the duel state, so it replays on every move:  a hit pops, a miss shakes.
+  // A long unbroken guess wraps instead of running off the screen (break-words
+  // is the fallback where "anywhere" isn't supported).
   const lastBanner = duel?.last && (
-    <p key={duelKey} className={`text-center text-sm ${duel.last.kind === "miss" ? "fx-shake" : "pop-in"}`}>
+    <p
+      key={duelKey}
+      className={`text-center text-sm break-words ${duel.last.kind === "miss" ? "fx-shake" : "pop-in"}`}
+      style={{ overflowWrap: "anywhere" }}
+    >
       {duel.last.kind === "hit" && (
         <span className="text-win font-bold">
           ✓ {duel.last.name} got {duel.last.word}!

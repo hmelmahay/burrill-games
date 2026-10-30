@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase, Room, Sub } from "@/lib/supabase";
+import { supabase, Room, Sub, BallparkRound } from "@/lib/supabase";
 import { BigBtn, useMaskedTyping } from "@/app/components/ui";
 import { Stamp } from "@/app/components/fx";
+import { formatterFor } from "@/app/ballpark/format";
 
 // A player's number guess for the current question. Shared by the phone view
 // and the host screen, so whoever runs the room can play on the same device.
@@ -71,7 +72,9 @@ export function PlayerPanel({
         <>
           <Stamp tone="violet">Locked in</Stamp>
           <p className="font-bold text-2xl font-mono tabular-nums">
-            {mySub ? Number(mySub.payload.guess).toLocaleString() : guess}
+            {mySub
+              ? formatterFor(room.rounds[room.round_idx] as BallparkRound | undefined)(Number(mySub.payload.guess))
+              : guess}
           </p>
         </>
       )}

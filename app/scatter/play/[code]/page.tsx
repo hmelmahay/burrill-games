@@ -11,10 +11,7 @@ import { useStaged } from "@/lib/motion";
 import { playerKey } from "@/lib/rooms";
 import { POINTS_PER_ANSWER, ScatterPhaseData } from "@/app/scatter/constants";
 import { PlayerPanel } from "@/app/scatter/PlayerPanel";
-
-// The board fades in once the result card has slammed in. The host screen shows
-// its board at once, so the phone never shows the round's points first.
-const BOARD_AT = 400;
+import { REVEAL } from "@/app/scatter/reveal";
 
 export default function ScatterPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -99,6 +96,9 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
       {room.phase === "reveal" && round && (
         <RevealScope staged={staged}>
           <div className="flex flex-col gap-4">
+            {/* The card waits past the host's board (shown at once), and the
+                board here follows the card, so this phone never shows the
+                round's points before the room sees them. */}
             {myResult && (
               <ResultCard
                 tone={myResult.gained > 0 ? "win" : "neutral"}
@@ -108,14 +108,19 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
                     ? `${myScored} ${myScored === 1 ? "answer" : "answers"} scored`
                     : "No answers scored this round"
                 }
+                delayMs={REVEAL.phoneCard}
               >
                 <ul className="text-sm mt-2 text-left">
                   {myResult.cells.map((cell, i) => (
                     <li key={i} className="flex justify-between gap-2">
-                      <span className={cell.s === "ok" ? "" : "line-through opacity-70"}>
+                      {/* A 40-letter word wraps inside its own column, so the
+                          label beside it stays on the card. */}
+                      <span
+                        className={`min-w-0 break-words ${cell.s === "ok" ? "" : "line-through opacity-70"}`}
+                      >
                         {round.categories[i]}: {cell.a || "—"}
                       </span>
-                      <span className="font-semibold">
+                      <span className="shrink-0 font-semibold">
                         {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
                         {cell.s === "dupe" && "duplicate"}
                         {cell.s === "invalid" && "wrong letter"}
@@ -126,7 +131,7 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
                 </ul>
               </ResultCard>
             )}
-            <Reveal kind="fade" delayMs={BOARD_AT}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             <p className="text-fog text-sm text-center">Waiting for the host…</p>

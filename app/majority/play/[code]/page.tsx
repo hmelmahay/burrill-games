@@ -71,12 +71,12 @@ export default function MajorityPlay({ params }: { params: Promise<{ code: strin
               </div>
               <SplitBar aCount={phaseData.aCount ?? 0} bCount={phaseData.bCount ?? 0} size="sm" />
             </div>
-            {/* Same beat as the host's verdict stamp, so the phone never spoils it. */}
+            {/* Its own beat, well after the host's verdict stamp, so the phone never spoils it. */}
             {myResult && (
               <ResultCard
                 tone={myResult.gained > 0 ? "win" : "lose"}
                 points={myResult.gained > 0 ? myResult.gained : undefined}
-                delayMs={REVEAL.verdict}
+                delayMs={REVEAL.card}
                 title={
                   myResult.vote == null
                     ? "No vote in time"

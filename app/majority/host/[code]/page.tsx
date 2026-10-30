@@ -298,7 +298,10 @@ export default function MajorityHost({ params }: { params: Promise<{ code: strin
                 {voterDots("a")}
                 {voterDots("b")}
               </div>
-              <div className="flex flex-col items-center gap-1 pt-1">
+              {/* pt-3 and pb-3: a long stamp wraps to full width, and its -4deg
+                  tilt lifts one corner and drops the other about 21px past its
+                  box, into the voter dots above and the panel's border below. */}
+              <div className="flex flex-col items-center gap-1 pt-3 pb-3">
                 <Stamp
                   size="lg"
                   tone={phaseData.majority === "tie" ? "gold" : phaseData.majority === "a" ? "glow" : "violet"}

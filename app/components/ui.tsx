@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Player } from "@/lib/supabase";
 import { useSpectator } from "@/lib/useSpectator";
 import type { HostSeat } from "@/lib/useHostSeat";
 import { FX, competitionRanks } from "@/lib/fx";
-import { useFlip, useRevealTiming, useSettledOrder } from "@/lib/motion";
+import { prefersReducedMotion, useFlip, useRevealTiming, useSettledOrder } from "@/lib/motion";
 import { Marquee, PlayerDot } from "./brand";
 import { Dots, RollingNumber, Stamp } from "./fx";
 
@@ -44,7 +44,8 @@ export function Shell({
             </span>
           )}
           {suffix && (
-            <span className="min-w-0 truncate rounded-full border border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-fog">
+            // Capped so a long player name can't squeeze the game's sign.
+            <span className="min-w-0 max-w-[40%] truncate rounded-full border border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-fog">
               {suffix}
             </span>
           )}
@@ -294,7 +295,7 @@ export function Countdown({
           </div>
         )}
       </div>
-      <span className="font-mono text-2xl font-bold w-12 text-right tabular-nums">
+      <span className="font-mono text-2xl font-bold min-w-12 text-right tabular-nums">
         <span key={left <= 5 ? left : "n"} className={left <= 5 && left > 0 ? "fx-tick" : ""}>
           {left}s
         </span>
@@ -343,19 +344,26 @@ export function Leaderboard({
   const listRef = useRef<HTMLOListElement>(null);
   useFlip(listRef, order.join(","));
   const rows = order.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p);
+  // Until the rows slide into the new order they still show last round's
+  // standings (old order, numbers not yet counted), so badges and the crown
+  // follow the shown order too and change with the slide.
+  const settled = order.join(",") === sorted.map((p) => p.id).join(",");
+  const soleLeader = settled ? (leaders.length === 1 ? leaders[0].id : null) : (rows[0]?.id ?? null);
   const big = size === "lg";
   return (
     <ol ref={listRef} className="flex flex-col gap-1.5">
       {rows.map((p, i) => {
-        const rank = rankOf.get(p.id) ?? i + 1;
+        const rank = settled ? (rankOf.get(p.id) ?? i + 1) : i + 1;
         const badge = p.score > 0 && rank <= 3;
         const gain = gains?.[p.id];
+        // Staggered by final standing, which doesn't change while rows re-sort.
+        const at = sorted.findIndex((s) => s.id === p.id);
         return (
           <li
             key={p.id}
             data-flip-id={p.id}
             className={`hiscore-row gap-3 ${big ? "px-5 py-3 text-2xl" : ""} ${p.id === highlightId ? "is-me" : ""} ${
-              rank === 1 && p.score > 0 ? "is-leader" : ""
+              soleLeader === p.id && p.score > 0 ? "is-leader" : ""
             }`}
           >
             <span className={`${big ? "w-16" : "w-11"} shrink-0 text-center`}>
@@ -367,17 +375,15 @@ export function Leaderboard({
             </span>
             <PlayerDot id={p.id} name={p.name} size={big ? "lg" : "sm"} />
             <span className="flex-1 font-semibold truncate">
-              {leaders.length === 1 && leaders[0].id === p.id ? "👑 " : ""}
+              {soleLeader === p.id && p.score > 0 ? "👑 " : ""}
               {p.name}
             </span>
             {gain != null && gain !== 0 && (
-              <span
-                className={`gain-chip ${gain < 0 ? "is-neg" : ""} ${staged ? "fx-in" : ""}`}
-                style={staged ? { animationDelay: `${delay + 200 + i * FX.stagger}ms` } : undefined}
-              >
-                {gain > 0 ? "+" : ""}
-                {gain.toLocaleString()}
-              </span>
+              <GainChip
+                key={`${p.id}:${gain}`}
+                gain={gain}
+                delayMs={staged ? delay + 200 + Math.max(0, at) * FX.stagger : null}
+              />
             )}
             <RollingNumber id={p.id} value={p.score} gain={gain} delayMs={200} className="font-mono font-bold" />
           </li>
@@ -385,6 +391,37 @@ export function Leaderboard({
       })}
       {rows.length === 0 && <p className="text-fog text-sm">Nobody yet…</p>}
     </ol>
+  );
+}
+
+// Pops in once, `delayMs` after mount (null: no motion).  Web Animations, not a
+// CSS class:  React moves a row's node when the board re-sorts, a moved node
+// restarts its CSS animations, and the chip vanished and popped in again.
+function GainChip({ gain, delayMs }: { gain: number; delayMs: number | null }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (delayMs == null || !el || typeof el.animate !== "function") return;
+    const still = prefersReducedMotion();
+    const a = el.animate(
+      still
+        ? [{ opacity: 0 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: "translateY(14px) scale(0.9)" },
+            { opacity: 1, transform: "translateY(-3px) scale(1.08)", offset: 0.55 },
+            { opacity: 1, transform: "none" },
+          ],
+      { duration: still ? 1 : 450, delay: delayMs, easing: "ease-out", fill: "backwards" },
+    );
+    return () => a.cancel();
+    // Plays once per chip; the key changes when the gain does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <span ref={ref} className={`gain-chip ${gain < 0 ? "is-neg" : ""}`}>
+      {gain > 0 ? "+" : ""}
+      {gain.toLocaleString()}
+    </span>
   );
 }
 

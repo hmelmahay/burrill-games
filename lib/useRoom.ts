@@ -14,9 +14,14 @@ export function useRoom(game: string, code: string) {
   // can be told apart from "the list hasn't loaded yet".
   const [playersLoaded, setPlayersLoaded] = useState(false);
   const roomIdRef = useRef<string | null>(null);
+  const roomRef = useRef<Room | null>(null);
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Resolves false when a read failed and is worth retrying.
-  async function refresh(): Promise<boolean> {
+  async function refresh(fromPoll = false): Promise<boolean> {
     const { data: r, error: rErr } = await supabase
       .from("arcade_rooms")
       .select("*")
@@ -32,6 +37,20 @@ export function useRoom(game: string, code: string) {
     }
     setError(null);
     const rm = r as Room;
+    // The backstop poll can read a new phase before the host screen hears about
+    // its own write over Realtime, and a staged reveal would then land on this
+    // phone first.  So a poll that finds a new phase looks again a beat later
+    // instead of showing it;  Realtime usually delivers it in between.
+    const cur = roomRef.current;
+    if (fromPoll && cur && (cur.phase !== rm.phase || cur.round_idx !== rm.round_idx)) {
+      if (!holdRef.current) {
+        holdRef.current = setTimeout(() => {
+          holdRef.current = null;
+          void refresh();
+        }, 700);
+      }
+      return true;
+    }
     roomIdRef.current = rm.id;
     setRoom(rm);
     const [{ data: ps, error: pErr }, { data: ss, error: sErr }] = await Promise.all([
@@ -145,12 +164,18 @@ export function useRoom(game: string, code: string) {
         (payload) =>
           setSubs((ss) => ss.filter((s) => s.id !== (payload.old as { id: string }).id)),
       )
-      .subscribe();
+      // Catch up on anything that changed between the first read and the
+      // channel joining (and after a reconnect), instead of waiting for the poll.
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void refresh();
+      });
     // Backstop poll: Realtime very occasionally drops events on phone lock/unlock.
-    const poll = setInterval(refresh, 5000);
+    const poll = setInterval(() => refresh(true), 5000);
     return () => {
       supabase.removeChannel(ch);
       clearInterval(poll);
+      if (holdRef.current) clearTimeout(holdRef.current);
+      holdRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);

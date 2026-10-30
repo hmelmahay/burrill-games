@@ -23,11 +23,11 @@ import { REVEAL, fastestCorrect } from "@/app/quiz/reveal";
 // it renders room state and never writes, so it can't race the host screen.
 //
 // The countdown here is anchored to the server-stamped phase_started_at, not a
-// local timer: a stage opened mid-round shows the true remaining time, and it
-// tracks the host's two-clock reveal deadline closely enough that "Time!"
-// lands together on every screen.
+// local timer, so a stage opened mid-round shows the true remaining time.
+// "Time!" shows when that clock reaches 0.  The phones and the host count from
+// when the question reached them, a beat later, so it lands with theirs and
+// stays up through the host's 2s buzzer-beater grace until the reveal.
 
-const REVEAL_GRACE_SECONDS = 2; // matches the host's buzzer-beater grace
 // The tile's bottom lip, as a literal inline shadow (same as the host tiles).
 const LIP = "inset 0 -5px 0 rgba(0,0,0,.25)";
 
@@ -75,10 +75,6 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
           Math.min(nextSeconds, nextSeconds - Math.floor((Date.now() - startMs) / 1000)),
         )
       : nextSeconds;
-  const overtime =
-    questionLive &&
-    startMs != null &&
-    Date.now() >= startMs + (answerSeconds + REVEAL_GRACE_SECONDS) * 1000;
 
   if (error) {
     return (
@@ -113,7 +109,7 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
             <span>{round.cat}</span>
           </div>
 
-          <StageClock left={left} total={answerSeconds} overtime={overtime} />
+          <StageClock left={left} total={answerSeconds} />
 
           <h1 className="text-5xl md:text-6xl font-extrabold text-center leading-tight py-6 text-balance">
             {round.q}
@@ -261,14 +257,15 @@ function StageLobby({
   );
 }
 
-// Same colors as the phones' Countdown: green, orange at 10s, red at 5s. The
-// number ticks once a second from 5 to 1; overtime gets a one-shot stamp.
-function StageClock({ left, total, overtime }: { left: number; total: number; overtime: boolean }) {
+// Same colors as the phones' Countdown:  green, orange at 10s, red at 5s.  The
+// number ticks once a second from 5 to 1.  At 0 a one-shot Time! stamp takes
+// its place and stays until the reveal.
+function StageClock({ left, total }: { left: number; total: number }) {
   const color = left <= 5 ? "#e74c3c" : left <= 10 ? "#ff9f1c" : "#2ecc71";
   return (
     <div className="flex items-center gap-5">
       <Fuse left={left} total={total} color={color} className="h-6 flex-1" />
-      {overtime ? (
+      {left === 0 ? (
         <Stamp tone="lose" size="lg">
           Time!
         </Stamp>

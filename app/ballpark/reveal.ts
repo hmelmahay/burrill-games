@@ -1,13 +1,19 @@
 import type { CSSProperties } from "react";
 
-// Ballpark's reveal rhythm, in ms from the moment the reveal phase opens.
-// The host, TV copies and phones all read these numbers, so a phone's own
-// result never lands before the room sees the answer flag.
+// Ballpark's reveal rhythm, in ms from the moment the reveal phase opens.  The
+// host, TV copies and phones all read these numbers.
+//
+// Each screen times its reveal from when the phase change reaches it, so a
+// phone can start a little ahead of the host.  The phone's own result card
+// waits 250ms past the host's flag, and the phone's board moves back with it,
+// still 400ms after the card.
 export const REVEAL = {
-  flag: 1500, // the answer count-up ends and the gold flag slams onto the line
+  flag: 1500, // the answer count-up ends and the gold flag slams onto the line (the host's payoff)
   ring: 1600, // the closest pins ring
-  deadOn: 1700, // an exact hit: the Dead on stamp and confetti
-  board: 1900, // the sorted guesses and the leaderboard
+  deadOn: 1700, // an exact hit:  the Dead on stamp and confetti
+  board: 1900, // host:  the sorted guesses and the leaderboard
+  phoneCard: 1750, // phone:  the player's own result card
+  phoneBoard: 2150, // phone:  the leaderboard, after the card
 } as const;
 
 // Pins drop farthest first, this far apart, all of them started within PIN_MAX.

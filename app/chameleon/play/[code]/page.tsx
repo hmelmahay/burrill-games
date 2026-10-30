@@ -143,14 +143,14 @@ export default function ChameleonPlay({ params }: { params: Promise<{ code: stri
                 tone="win"
                 points={myResult.gained}
                 title={myResult.wasChameleon ? "Slippery. Very slippery." : "You saw right through them."}
-                delayMs={REVEAL.card}
+                delayMs={REVEAL.phoneCard}
               />
             )}
-            <Reveal kind="fade" delayMs={REVEAL.board}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             {/* Waits with the board: its position would hint at the hidden result card. */}
-            <Reveal kind="fade" delayMs={REVEAL.board} as="p" className="text-fog text-sm text-center">
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard} as="p" className="text-fog text-sm text-center">
               Waiting for the host…
             </Reveal>
           </div>

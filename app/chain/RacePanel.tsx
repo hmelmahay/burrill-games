@@ -173,6 +173,8 @@ export function RacePanel({
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder={locked ? "Wrong — hang on…" : "Next word…"}
               disabled={locked}
+              // Chain words are 8 letters at most:  12 leaves room for a typo.
+              maxLength={12}
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}

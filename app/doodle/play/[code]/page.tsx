@@ -38,7 +38,8 @@ export default function DoodlePlay({ params }: { params: Promise<{ code: string 
     drawSeconds,
     room?.phase === "draw",
   );
-  // Same timing as the host screen; a refreshed phone gets the final state.
+  // Staged off the same REVEAL beats as the host screen (the card and board
+  // wait for the host's payoff); a refreshed phone gets the final state.
   const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   if (error)
@@ -127,10 +128,10 @@ export default function DoodlePlay({ params }: { params: Promise<{ code: string 
                       : "It was right there…"
                 }
                 celebrate={!!first && first.player_id === playerId}
-                delayMs={REVEAL.word}
+                delayMs={REVEAL.card}
               />
             )}
-            <Reveal kind="fade" delayMs={REVEAL.board}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             <p className="text-fog text-sm text-center">Waiting for the host…</p>

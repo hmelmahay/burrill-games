@@ -68,7 +68,7 @@ export function WordGrid({
                     ...(cue != null ? { animationDelay: `${cue}ms` } : {}),
                   }}
                 >
-                  {w}
+                  <FaceWord word={w} />
                 </span>
                 {isPicked && !isSecret && <PickMark at={cue != null ? cue + 200 : null} />}
               </span>
@@ -83,6 +83,40 @@ export function WordGrid({
       })}
     </div>
   );
+}
+
+// The word on a marked face.  The face is a flex box, and a flex item won't
+// shrink below its longest word, so a long single word (Ghostbusters on a 375
+// phone) ran over the border.  A single word now sits in a min-w-0 span that
+// wraps with break-words.  It may use the face's 4px padding first, since the
+// bolder face is wider than the plain tile and most 10-letter words still fit
+// on one line that way.  A word that has to wrap breaks near its middle
+// ("Ghost / busters") rather than leaving one letter on the second line.
+// Entries with spaces or hyphens wrap at those, as before.
+function FaceWord({ word }: { word: string }) {
+  if (/[\s-]/.test(word)) return word;
+  const at = /^[A-Za-z]{8,}$/.test(word) ? breakPoint(word) : 0;
+  return (
+    <span className="-mx-1 min-w-0 break-words">
+      {at ? (
+        <>
+          {word.slice(0, at)}
+          <wbr />
+          {word.slice(at)}
+        </>
+      ) : (
+        word
+      )}
+    </span>
+  );
+}
+
+// The middle of the word, moved one letter when that puts the break between
+// two consonants (Ghost / busters, not Ghostb / usters).
+function breakPoint(word: string): number {
+  const mid = Math.floor(word.length / 2);
+  const consonant = (c: string) => !/[aeiou]/i.test(c);
+  return [mid, mid - 1, mid + 1].find((i) => consonant(word[i - 1]) && consonant(word[i])) ?? mid;
 }
 
 // The orange ✕ on a wrong pick. `at` pops it in at that time; null shows it at once.

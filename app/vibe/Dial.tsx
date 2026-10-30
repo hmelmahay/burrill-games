@@ -18,21 +18,34 @@ const BAND_COLOR: Record<(typeof BANDS)[number], string> = {
 const EST_DIAL_PX = 340;
 
 type Align = "start" | "center" | "end";
-// Near an end of the dial a label runs inward, so it stays on the dial.
-function alignOf(pos: number): Align {
-  return pos < 15 ? "start" : pos > 85 ? "end" : "center";
+
+// A label's estimated width in px (11px bold is about 7px a character).
+function labelPx(label: string): number {
+  return Math.max(12, 7 * Array.from(label).length);
+}
+
+// A label sits centered under its dot unless that would run it off the dial,
+// and then it runs inward from the dot.  Near either end it always runs
+// inward.  A long label turns inward further from the ends:  a 20-character
+// name plus " (you)" is about 160px, so centered at 16 or 84 on a phone it
+// would run off the screen.
+function alignOf(pos: number, w: number): Align {
+  const x = (pos / 100) * EST_DIAL_PX;
+  if (pos < 15 || x - w / 2 < 0) return "start";
+  if (pos > 85 || x + w / 2 > EST_DIAL_PX) return "end";
+  return "center";
 }
 
 // Walking left to right, each dial takes the first of three rows where its
-// label clears the one before it, else the row that frees up soonest. Spans
-// are estimated in px for EST_DIAL_PX (11px bold is about 7px a character).
+// label clears the one before it, else the row that frees up soonest.  Spans
+// are estimated in px for EST_DIAL_PX.
 function labelRows(marksLeftToRight: { i: number; pos: number; label: string }[]): Map<number, number> {
   const end = [-Infinity, -Infinity, -Infinity];
   const rows = new Map<number, number>();
   for (const m of marksLeftToRight) {
-    const w = Math.max(12, 7 * Array.from(m.label).length);
+    const w = labelPx(m.label);
     const x = (m.pos / 100) * EST_DIAL_PX;
-    const align = alignOf(m.pos);
+    const align = alignOf(m.pos, w);
     const [a, b] = align === "start" ? [x - 8, x - 8 + w] : align === "end" ? [x + 8 - w, x + 8] : [x - w / 2, x + w / 2];
     let r = end.findIndex((e) => e + 6 <= a);
     if (r < 0) r = end.indexOf(Math.min(...end));
@@ -101,7 +114,7 @@ export function Dial({
         {popOrder.map(({ m, i, d }) => {
           const at = popAt.get(i) ?? REVEAL.marks;
           const close = target != null && d <= BULLSEYE;
-          const a = alignOf(m.pos);
+          const a = alignOf(m.pos, labelPx(m.label));
           const label: CSSProperties =
             a === "start" ? { left: -2 } : a === "end" ? { right: -2 } : { left: "50%", transform: "translateX(-50%)" };
           return (

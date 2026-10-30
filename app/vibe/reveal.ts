@@ -1,13 +1,19 @@
 import type { CSSProperties } from "react";
 
 // Vibe Check's reveal rhythm, in ms from the moment the reveal phase opens.
-// The host, TV copies and phones all read these numbers, so a phone's own
-// result never lands before the room's bullseye moment.
+// The host, TV copies and phones all read these numbers.
+//
+// Each screen times its reveal from when the phase change reaches it, so a
+// phone can start a little ahead of the host.  The phone's own result card
+// waits 250ms past the host's Bullseye beat, and the phone's board moves back
+// with it, still 200ms after the card.
 export const REVEAL = {
   target: 300, // the green target line drops; the scoring bands spread out from it
   marks: 800, // dials pop in, farthest from the target first
-  bullseye: 1600, // rings on dials within BULLSEYE, the stamp and confetti, the phone's result card
-  board: 1800, // the leaderboard
+  bullseye: 1600, // rings on dials within BULLSEYE, the stamp and confetti (the host's payoff)
+  board: 1800, // host:  the leaderboard
+  phoneCard: 1850, // phone:  the player's own result card
+  phoneBoard: 2050, // phone:  the leaderboard, after the card
 } as const;
 
 export const BAND_STEP = 60; // the scoring bands spread out from the target this far apart

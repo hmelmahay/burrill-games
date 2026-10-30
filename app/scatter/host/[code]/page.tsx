@@ -318,7 +318,8 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
                         : "border-line bg-ink",
                     };
                     const verdict = s === "ok" ? (accepted ? ACCEPTED : null) : VERDICT[s];
-                    const chipClass = `rounded-lg px-3 py-2 text-sm border text-left ${styles[s]}`;
+                    // Never wider than the card:  a 40-letter word wraps inside it.
+                    const chipClass = `max-w-full break-words rounded-lg px-3 py-2 text-sm border text-left ${styles[s]}`;
                     const body = (
                       <>
                         <span className="block text-xs text-fog">{player.name}</span>
@@ -370,37 +371,19 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
               Round {room.round_idx + 1}/{totalRounds} scored · letter {round.letter}
             </p>
             <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-            {/* Open on a TV copy, where nobody can tap it. */}
-            <details open={seat.tv} className="rounded-xl bg-card border border-line p-3">
-              <summary className="font-bold cursor-pointer">Answer breakdown</summary>
-              <div className="mt-2 flex flex-col gap-3">
-                {results.map((r, ri) => (
-                  <Reveal
-                    key={r.player_id}
-                    kind="rise"
-                    delayMs={stagger(ri, results.length, FX.stagger, 600)}
-                  >
-                    <h3 className="font-semibold text-sm">{r.name} · +{r.gained}</h3>
-                    <ul className="text-sm text-fog">
-                      {r.cells.map((cell, i) => (
-                        <li key={i} className="flex justify-between gap-2">
-                          <span className={cell.s === "ok" ? "" : "line-through opacity-60"}>
-                            {round.categories[i]}: {cell.a || "—"}
-                          </span>
-                          <span>
-                            {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
-                            {cell.s === "dupe" && "duplicate"}
-                            {cell.s === "invalid" && "wrong letter"}
-                            {cell.s === "rejected" && "rejected"}
-                            {cell.s === "empty" && ""}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </Reveal>
-                ))}
+            {/* A TV copy shows the breakdown open under a plain heading, with
+                no disclosure for a tap or a remote to fold away. */}
+            {seat.tv ? (
+              <div className="rounded-xl bg-card border border-line p-3">
+                <h2 className="font-bold">Answer breakdown</h2>
+                <Breakdown results={results} categories={round.categories} />
               </div>
-            </details>
+            ) : (
+              <details className="rounded-xl bg-card border border-line p-3">
+                <summary className="font-bold cursor-pointer">Answer breakdown</summary>
+                <Breakdown results={results} categories={round.categories} />
+              </details>
+            )}
             <BigBtn onClick={next} disabled={busy}>
               {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
             </BigBtn>
@@ -416,6 +399,37 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
         </FinalStandings>
       )}
     </Shell>
+  );
+}
+
+// Every player's answers and calls for the round.  Rows rise in 60ms apart on
+// a screen that saw the reveal start.  A 40-letter word wraps inside its own
+// column, so the call beside it stays in the box.
+function Breakdown({ results, categories }: { results: ScatterResult[]; categories: string[] }) {
+  return (
+    <div className="mt-2 flex flex-col gap-3">
+      {results.map((r, ri) => (
+        <Reveal key={r.player_id} kind="rise" delayMs={stagger(ri, results.length, FX.stagger, 600)}>
+          <h3 className="font-semibold text-sm">{r.name} · +{r.gained}</h3>
+          <ul className="text-sm text-fog">
+            {r.cells.map((cell, i) => (
+              <li key={i} className="flex justify-between gap-2">
+                <span className={`min-w-0 break-words ${cell.s === "ok" ? "" : "line-through opacity-60"}`}>
+                  {categories[i]}: {cell.a || "—"}
+                </span>
+                <span className="shrink-0">
+                  {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
+                  {cell.s === "dupe" && "duplicate"}
+                  {cell.s === "invalid" && "wrong letter"}
+                  {cell.s === "rejected" && "rejected"}
+                  {cell.s === "empty" && ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
+      ))}
+    </div>
   );
 }
 

@@ -3,7 +3,7 @@
 import { createElement, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import type { Player } from "@/lib/supabase";
 import { FX, TONE_HEX, mulberry32, stagger, type Tone } from "@/lib/fx";
-import { RevealContext, prefersReducedMotion, shownScores, useRevealTiming } from "@/lib/motion";
+import { RevealContext, prefersReducedMotion, shownScores, useAfter, useRevealTiming } from "@/lib/motion";
 import { Marquee, PlayerDot } from "./brand";
 import { Confetti } from "./Confetti";
 
@@ -126,9 +126,15 @@ export function RollingNumber({
       el.textContent = format(n);
       el.dataset.v = String(n);
     };
-    if (fromV === value || !staged || prefersReducedMotion()) {
+    if (fromV === value || !staged) {
       show(value);
       return;
+    }
+    // Reduced motion skips the count but keeps the beat, so a number can't
+    // land on this screen before the room's reveal does.
+    if (prefersReducedMotion()) {
+      const jump = setTimeout(() => show(value), delay + delayMs);
+      return () => clearTimeout(jump);
     }
     let raf = 0;
     let t0 = 0;
@@ -249,15 +255,24 @@ export function ResultCard({
     ) : tone === "lose" ? (
       "✗"
     ) : null);
+  const card = (
+    <div className={`rounded-2xl p-5 text-center ${skin}`}>
+      {headline != null && <div className="text-3xl font-extrabold">{headline}</div>}
+      <div className="font-semibold">{title}</div>
+      {children}
+    </div>
+  );
+  // Only a loss gets the shake wrapper:  its 460ms would also hold back a
+  // winning card's count-up, which sat at "+0" after the card landed.
   return (
     <Reveal kind="slam" delayMs={delayMs}>
-      <Reveal kind={tone === "lose" ? "shake" : "none"} delayMs={460}>
-        <div className={`rounded-2xl p-5 text-center ${skin}`}>
-          {headline != null && <div className="text-3xl font-extrabold">{headline}</div>}
-          <div className="font-semibold">{title}</div>
-          {children}
-        </div>
-      </Reveal>
+      {tone === "lose" ? (
+        <Reveal kind="shake" delayMs={460}>
+          {card}
+        </Reveal>
+      ) : (
+        card
+      )}
       {celebrate && <Confetti pieces={14} />}
     </Reveal>
   );
@@ -280,7 +295,8 @@ export function LobbyWait({
       <Marquee title="Player ready" burstKey={players.length} />
       <div className="flex items-center gap-3 max-w-full">
         <PlayerDot id={me.id} name={me.name} size="lg" />
-        <h1 className="neon-text text-3xl font-extrabold break-words min-w-0">{me.name}</h1>
+        {/* text-left:  a long name that wraps stays beside its dot. */}
+        <h1 className="neon-text text-3xl font-extrabold break-words min-w-0 text-left">{me.name}</h1>
       </div>
       <p className="text-fog">
         Waiting for the host to start
@@ -302,12 +318,24 @@ export function LobbyWait({
 // Teaser for `ms`, then the children slam in. Only Hot Take and Chameleon use it.
 export function Drumroll({ ms = FX.drum, tease, children }: { ms?: number; tease: ReactNode; children: ReactNode }) {
   const { delay, staged } = useRevealTiming();
+  // Reduced motion shrinks every animation to 1ms, and the tease is only ever
+  // visible through its animation, so there it sits still for the same beat.
+  const still = staged && prefersReducedMotion();
+  const teaseOver = useAfter(delay + ms, still);
   if (!staged) return <>{children}</>;
   return (
     <div className="relative min-h-20">
-      <div aria-hidden className="fx-drum" style={{ animationDuration: `${ms}ms`, animationDelay: `${delay}ms` }}>
-        <span className="font-display text-2xl text-fog">{tease}</span>
-      </div>
+      {still ? (
+        !teaseOver && (
+          <div aria-hidden className="fx-drum" style={{ animation: "none", opacity: 1 }}>
+            <span className="font-display text-2xl text-fog">{tease}</span>
+          </div>
+        )
+      ) : (
+        <div aria-hidden className="fx-drum" style={{ animationDuration: `${ms}ms`, animationDelay: `${delay}ms` }}>
+          <span className="font-display text-2xl text-fog">{tease}</span>
+        </div>
+      )}
       <Reveal kind="slam" delayMs={ms}>
         {children}
       </Reveal>

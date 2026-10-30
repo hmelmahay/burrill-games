@@ -45,14 +45,16 @@ const GAMES: {
     slug: "hottake",
     desc: "Who's most likely to sleep through three alarms? Vote for a player, score by reading the room.",
   },
-  {
-    slug: "doodle",
-    desc: "One player sketches live on their phone; everyone races to guess it. Artist scores per correct guess.",
-  },
+  // Vibe before Doodle keeps the two violet cards (Two Truths, Doodle) out of
+  // the same column on the two-column grid.
   {
     slug: "vibe",
     desc: "The psychic hides a spot on a scale — Hot ↔ Cold — and gives one clue. Slide your dial to where it lands.",
     bots: { minHumans: 1 },
+  },
+  {
+    slug: "doodle",
+    desc: "One player sketches live on their phone; everyone races to guess it. Artist scores per correct guess.",
   },
   {
     slug: "chain",

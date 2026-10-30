@@ -24,7 +24,12 @@ export function RoomSays({
         <div aria-hidden className={compact ? "text-3xl" : "text-4xl"}>
           🏅
         </div>
-        <div className={`font-display neon-text max-w-full break-words ${compact ? "text-2xl" : "text-3xl"}`}>
+        {/* The accent's light orange without neon-text's glow: the panel already
+            glows, and a screen gets three glows at most. */}
+        <div
+          className={`font-display max-w-full break-words ${compact ? "text-2xl" : "text-3xl"}`}
+          style={{ color: "#ffd29a" }}
+        >
           {names}
         </div>
         {tie && <Stamp tone="gold">Tie</Stamp>}

@@ -45,9 +45,12 @@ export function JoinForm({ game }: { game: GameKind; title?: string }) {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
-      <Link href="/" className="self-start text-sm text-fog">
-        ← games
-      </Link>
+      {/* Lined up with the form, not the far edge of a laptop screen. */}
+      <div className="w-full max-w-xs">
+        <Link href="/" className="text-sm text-fog">
+          ← games
+        </Link>
+      </div>
       <Marquee icon={meta.icon} title={meta.name} size="lg" burstKey="join" />
       <div className="neon-panel fx-rise flex flex-col gap-3 w-full max-w-xs p-4">
         <input

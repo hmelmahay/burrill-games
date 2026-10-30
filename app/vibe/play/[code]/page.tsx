@@ -102,6 +102,21 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
         <PlayerPanel room={room} players={players} subs={subs} playerId={playerId} />
       )}
 
+      {/* PlayerPanel has nothing for a guesser while the psychic writes, so
+          show the scale they'll be guessing on, as the host screen does. */}
+      {room.phase === "clue" && round && round.psychic_id !== playerId && (
+        <div className="flex flex-col gap-4 items-center py-8">
+          <p className="text-4xl">🔮</p>
+          <h1 className="text-2xl font-extrabold text-center">{round.psychic_name} is tuning in…</h1>
+          <div className="w-full">
+            <Dial marks={[]} left={round.left} right={round.right} />
+          </div>
+          <p className="text-fog text-sm text-center">
+            They can see the secret spot on this scale and are writing a clue.
+          </p>
+        </div>
+      )}
+
       {room.phase === "reveal" && round && (
         <RevealScope staged={staged}>
           <div className="flex flex-col gap-4" style={EDGE_CLIP}>
@@ -133,12 +148,13 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
               left={round.left}
               right={round.right}
             />
+            {/* The card and the board wait past the host's Bullseye beat (see reveal.ts). */}
             {myResult && (
               <ResultCard
                 tone={myResult.gained > 0 ? "win" : "neutral"}
                 points={myResult.gained}
                 celebrate={myBullseye}
-                delayMs={REVEAL.bullseye}
+                delayMs={REVEAL.phoneCard}
                 title={
                   myResult.isPsychic
                     ? "Psychic bonus for dials near your spot"
@@ -148,7 +164,7 @@ export default function VibePlay({ params }: { params: Promise<{ code: string }>
                 }
               />
             )}
-            <Reveal kind="fade" delayMs={REVEAL.board}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             <p className="text-fog text-sm text-center">Waiting for the host…</p>

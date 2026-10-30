@@ -122,6 +122,9 @@ export function DuelPanel({
           onKeyDown={(e) => e.key === "Enter" && submit(false)}
           placeholder="Your guess…"
           disabled={busy}
+          // Chain words are 8 letters at most:  12 leaves room for a typo and
+          // keeps a long miss from stretching the banner that echoes it.
+          maxLength={12}
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}

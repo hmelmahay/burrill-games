@@ -104,7 +104,9 @@ export function PlayerPanel({
             spellCheck={false}
             maxLength={40}
             className={`rounded-lg border border-line bg-card px-3 py-2.5 ${inputClass}`}
-            placeholder={`${round.letter}…`}
+            // The host screen's letter rolls in on a reel, so its boxes don't
+            // give the letter away before the reel stops.  Phones show it at once.
+            placeholder={conceal ? "Your answer…" : `${round.letter}…`}
           />
         </label>
       ))}

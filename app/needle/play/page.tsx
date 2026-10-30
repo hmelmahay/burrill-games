@@ -68,9 +68,12 @@ export default function JoinPage() {
 
   return (
     <main className="dark flex flex-1 flex-col items-center justify-center gap-6 p-6">
-      <Link href="/" className="self-start text-sm text-fog">
-        ← games
-      </Link>
+      {/* Lined up with the form, not the far edge of a laptop screen. */}
+      <div className="w-full max-w-xs">
+        <Link href="/" className="text-sm text-fog">
+          ← games
+        </Link>
+      </div>
       <Marquee
         icon={GAME_META.needle.icon}
         title={GAME_META.needle.name}

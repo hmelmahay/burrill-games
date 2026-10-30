@@ -390,7 +390,8 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
                     left === 0 ||
                     (chosen != null && !settings.allowChange)
                   }
-                  className={`${tile} press ${chosen != null && !selected ? "opacity-60" : ""}`}
+                  // A struck tile keeps its own dimmer opacity after a pick.
+                  className={`${tile} press ${chosen != null && !selected && !dead ? "opacity-60" : ""}`}
                   // The selection ring rides in the same inline shadow as the
                   // lip: a ring-* class would lose to the inline style.
                   style={{
@@ -447,7 +448,12 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
                     className={`relative rounded-xl p-4 font-bold text-white text-center ${right ? "" : "opacity-40"}`}
                     style={{ background: CHOICE_COLORS[i], boxShadow: LIP }}
                   >
-                    {right && <span aria-hidden className="tile-correct" />}
+                    {/* The ring rests lit.  It flickers on only on a screen
+                        that watched the reveal start, so a late TV copy or a
+                        refreshed host shows it steady. */}
+                    {right && (
+                      <span aria-hidden className={staged ? "tile-correct fx-neon-on" : "tile-correct"} />
+                    )}
                     {right && (
                       <Stamp tone="win" size="sm" className="absolute -top-3 -right-2">
                         ✓

@@ -143,7 +143,7 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
                     disabled={dead || switching}
                     className={`press flex items-center gap-3 rounded-xl px-3 py-3 text-left text-white ${
                       dead ? "opacity-35 line-through transition-opacity duration-500" : ""
-                    } ${selected ? "ring-4 ring-white" : chosen != null ? "opacity-70" : ""}`}
+                    } ${selected ? "ring-4 ring-white" : chosen != null && !dead ? "opacity-70" : ""}`}
                     style={{ background: CHOICE_COLORS[i] }}
                   >
                     <span className="w-9 h-9 shrink-0 rounded-lg bg-black/25 flex items-center justify-center text-lg font-extrabold">
@@ -170,7 +170,7 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
                   >
                     {CHOICE_LETTERS[chosen]} · {round.choices[chosen]}
                   </div>
-                  <p className="text-fog">Locked in! Waiting for everyone…</p>
+                  <p className="text-fog">Waiting for everyone…</p>
                 </>
               ) : (
                 <p className="text-fog text-xl">⏰ Time&apos;s up!</p>
@@ -185,6 +185,7 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
           <div className="flex flex-col gap-4">
             {myResult && (
               <ResultCard
+                delayMs={REVEAL.card}
                 tone={myResult.correct ? "win" : "lose"}
                 points={myResult.correct ? myResult.gained : undefined}
                 title={

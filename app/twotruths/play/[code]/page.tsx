@@ -89,10 +89,10 @@ export default function TTPlay({ params }: { params: Promise<{ code: string }> }
                         ? "No vote in time"
                         : "Fooled!"
                 }
-                delayMs={REVEAL.card}
+                delayMs={REVEAL.phoneCard}
               />
             )}
-            <Reveal kind="fade" delayMs={REVEAL.board}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             <p className="text-fog text-sm text-center">Waiting for the host…</p>

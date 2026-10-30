@@ -8,6 +8,7 @@ import { claimCard, needleCardKey, needleNameKey } from "@/lib/needle/cards";
 import { YouTubePlayer, YouTubePlayerHandle } from "@/app/needle/YouTubePlayer";
 import { BingoCard } from "@/app/needle/BingoCard";
 import { useSpectator } from "@/lib/useSpectator";
+import { prefersReducedMotion } from "@/lib/motion";
 import { Marquee } from "@/app/components/brand";
 import { CodeBadge } from "@/app/components/ui";
 import { Stamp } from "@/app/components/fx";
@@ -439,6 +440,7 @@ export default function HostGame({
   // restores autoplay (if it was on) and rolls straight into the next song.
   const wasAutoplayRef = useRef(false);
   const verifySectionRef = useRef<HTMLElement | null>(null);
+  const verdictRef = useRef<HTMLDivElement | null>(null);
 
   function pauseForBingo() {
     wasAutoplayRef.current = autoplayRef.current;
@@ -450,6 +452,21 @@ export default function HostGame({
     setPaused(true);
     setTimeout(
       () => verifySectionRef.current?.scrollIntoView({ behavior: "smooth" }),
+      50,
+    );
+  }
+
+  // Display only.  With a card on the host the titles are hidden, the page is
+  // short, and the verdict renders below a laptop's fold.  Bring it into view
+  // once it has rendered (a no-op when it is already on screen).
+  function checkCard(id: string) {
+    setVerifyId(id);
+    setTimeout(
+      () =>
+        verdictRef.current?.scrollIntoView({
+          block: "nearest",
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+        }),
       50,
     );
   }
@@ -602,7 +619,7 @@ export default function HostGame({
             value={manualSearch}
             onChange={(e) => setManualSearch(e.target.value)}
             placeholder="Filter…"
-            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-base sm:text-sm"
           />
           <div className="grid grid-cols-1 gap-1 max-h-80 overflow-y-auto">
             {game.play_order
@@ -645,7 +662,9 @@ export default function HostGame({
         </button>
       )}
 
-      <div className="neon-panel p-3 flex items-center justify-between gap-3">
+      {/* Below sm the controls wrap onto their own row when the title needs the
+          room, so a long title gets the panel's full width instead of about 100px. */}
+      <div className="neon-panel p-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           {/* Spins only while a clip plays on this device; never on a TV copy. */}
           <span
@@ -665,7 +684,7 @@ export default function HostGame({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="ml-auto flex items-center gap-3 shrink-0">
           {myCard && titlesAreAnswers && (
             <button
               onClick={() => setPeekTitles((v) => !v)}
@@ -700,10 +719,11 @@ export default function HostGame({
           </button>
           <label className="text-xs flex items-center gap-1 text-zinc-500">
             Gap:
+            {/* 16px on phones:  iOS zooms the page into a smaller control. */}
             <select
               value={gapSeconds}
               onChange={(e) => setGapSeconds(Number(e.target.value))}
-              className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5"
+              className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-base sm:text-xs"
             >
               <option value={2}>2s</option>
               <option value={3}>3s</option>
@@ -790,7 +810,7 @@ export default function HostGame({
             {cards.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setVerifyId(c.id)}
+                onClick={() => checkCard(c.id)}
                 className={`press rounded border p-2 text-sm ${
                   c.claimed ? "border-white" : "border-zinc-700 opacity-50"
                 } ${verifyId === c.id ? "bg-yellow-900" : ""}`}
@@ -803,9 +823,12 @@ export default function HostGame({
             ))}
           </div>
           {verifyCard && (
-            <div className="mt-3 flex flex-col gap-2">
+            // overflow-x-clip:  the Winner stamp enters at 2x and must not widen
+            // a 375 host screen.  -mx-4 px-4 put the clip at the page edge.
+            <div className="-mx-4 mt-3 flex flex-col gap-2 overflow-x-clip px-4">
               <div
-                className={`rounded-xl border-2 bg-card p-3 flex flex-col items-center gap-2 text-center ${
+                ref={verdictRef}
+                className={`scroll-mb-4 rounded-xl border-2 bg-card p-3 flex flex-col items-center gap-2 text-center ${
                   verifyResult ? "border-win" : "border-lose"
                 }`}
               >

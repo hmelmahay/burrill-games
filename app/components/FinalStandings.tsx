@@ -30,9 +30,12 @@ export function FinalStandings({
   const sorted = [...players].sort((a, b) => b.score - a.score);
   const ranks = competitionRanks(sorted.map((p) => p.score));
   const top = sorted[0]?.score ?? 0;
-  const atPlace = (place: 1 | 2 | 3) => sorted.filter((_, i) => ranks[i] === place);
+  // Nobody stands on a step with 0 points;  they're listed below instead.
+  const atPlace = (place: 1 | 2 | 3) => sorted.filter((p, i) => ranks[i] === place && p.score > 0);
   const winners = atPlace(1);
-  const rest = sorted.map((p, i) => ({ p, rank: ranks[i] })).filter((r) => r.rank > 3);
+  const rest = sorted
+    .map((p, i) => ({ p, rank: ranks[i] }))
+    .filter((r) => r.rank > 3 || (top > 0 && r.p.score <= 0));
   const meIdx = highlightId ? sorted.findIndex((p) => p.id === highlightId) : -1;
   const myRank = meIdx >= 0 ? ranks[meIdx] : null;
   const tied = myRank != null && ranks.filter((r) => r === myRank).length > 1;
@@ -53,11 +56,13 @@ export function FinalStandings({
                 <div key={place} className="flex-1 flex flex-col items-center gap-1 min-w-0">
                   <Reveal kind="pop" delayMs={at + 350} className="flex flex-col items-center gap-1 w-full min-w-0">
                     <span className={big ? "text-5xl" : "text-3xl"}>{MEDAL[place]}</span>
+                    {/* Your own name in color only:  a glow inside truncate's clip
+                        showed as a hard-edged box. */}
                     {group.slice(0, 3).map((p) => (
                       <span
                         key={p.id}
                         className={`font-extrabold truncate max-w-full ${big ? "text-3xl" : "text-lg"} ${
-                          p.id === highlightId ? "neon-text" : ""
+                          p.id === highlightId ? "text-[#c4b5ff]" : ""
                         }`}
                       >
                         {p.name}
@@ -91,7 +96,7 @@ export function FinalStandings({
           </Reveal>
         )}
         {celebrate && <Confetti pieces={big ? 48 : 36} delayMs={1300} />}
-        {myRank != null && size === "phone" && (
+        {myRank != null && size === "phone" && top > 0 && (
           <Reveal kind="fade" delayMs={1500}>
             <p className="text-fog">
               You {tied ? "tied for" : "finished"} {ordinal(myRank)} of {players.length}.

@@ -55,8 +55,11 @@ export default function HotTakePlay({ params }: { params: Promise<{ code: string
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
   const top = phaseData.top ?? [];
   const iAmFamous = top.includes(playerId ?? "");
-  const crowdLine =
-    myResult?.target && top.includes(myResult.target) ? "You voted with the crowd." : "The crowd went elsewhere.";
+  const crowdLine = !myResult?.target
+    ? "No vote in time."
+    : top.includes(myResult.target)
+      ? "You voted with the crowd."
+      : "The crowd went elsewhere.";
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
 

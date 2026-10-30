@@ -1,14 +1,19 @@
 // Reveal timing for Two Truths & a Lie, in ms from the moment the reveal
-// starts. The host screen and the phones read the same numbers, so a phone
-// never shows its result or the scores before the lie lands on the big screen
-// (the 500/250 gains would give the answer away).
+// starts.  The host screen and the phones play the same verdicts, and nothing
+// that gives the answer away (the 500/250 gains) shows before the lie lands.
+//
+// Each screen times its reveal from when the phase change reaches it, so a
+// phone can start a little ahead of the host (QA saw up to about 0.3s when a
+// phone's 5s backstop poll beat Realtime).  So the phone's own card waits
+// until 400ms after the host's lie, and the phone's board follows the card.
 export const REVEAL = {
   truth1: 500, // first truth, in statement order, gets its TRUE stamp
   truth2: 1100, // second truth
-  lie: 1900, // the lie: red overlay, big stamp, shake
-  fooled: 2100, // host: the author's "Fooled n" stamp
-  card: 2100, // phone: the player's own result card
-  board: 2300, // leaderboard with this round's gains
+  lie: 1900, // the lie:  red overlay, big stamp, shake (the host's payoff)
+  fooled: 2100, // host:  the author's "Fooled n" stamp
+  board: 2300, // host:  leaderboard with this round's gains
+  phoneCard: 2300, // phone:  the player's own result card
+  phoneBoard: 2500, // phone:  leaderboard with this round's gains
 } as const;
 
 // When each statement's verdict lands: the truths first, in statement order,

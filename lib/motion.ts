@@ -22,23 +22,50 @@ export function prefersReducedMotion(): boolean {
 // Should this screen play the staged version of the current phase? Yes when it
 // watched the phase change happen (within 8s, covering the 5s backstop poll),
 // or when it first loads within 4s of the phase starting. A refreshed phone or
-// a TV that joins late gets the final screen at once instead of a replay.
+// a TV that joins late gets the final screen at once instead of a replay, and
+// a tab never replays a phase it already played (a refresh inside the 4s).
 // phaseKey: `${room.round_idx}:${room.phase}`, or "" while the room loads.
 export function useStaged(phaseKey: string, startedAt?: string | null): boolean {
-  const [s, setS] = useState(() => ({ key: phaseKey, staged: decide(false, startedAt) }));
+  const id = phaseKey && startedAt ? `${phaseKey}@${startedAt}` : "";
+  const [s, setS] = useState(() => ({ key: phaseKey, staged: decide(false, startedAt, id) }));
+  let staged = s.staged;
   if (s.key !== phaseKey) {
-    const next = { key: phaseKey, staged: decide(s.key !== "", startedAt) };
+    const next = { key: phaseKey, staged: decide(s.key !== "", startedAt, id) };
     setS(next);
-    return next.staged;
+    staged = next.staged;
   }
-  return s.staged;
+  // Marked after commit, not during render, so a render React throws away
+  // can't mark a phase that never played.
+  useEffect(() => {
+    if (staged && id) markPlayed(id);
+  }, [staged, id]);
+  return staged;
 }
 
-function decide(live: boolean, startedAt?: string | null): boolean {
+function decide(live: boolean, startedAt: string | null | undefined, id: string): boolean {
   if (!startedAt) return true;
   const age = Date.now() - Date.parse(startedAt);
   if (!Number.isFinite(age)) return true;
-  return age < (live ? FX.liveMs : FX.freshMs);
+  if (age >= (live ? FX.liveMs : FX.freshMs)) return false;
+  return live || !id || !playedHere(id);
+}
+
+// Phases this tab has staged, newest last.  sessionStorage survives a reload of
+// the same tab and nothing else, which is exactly the case to catch.
+const PLAYED = "fx-played";
+function playedHere(id: string): boolean {
+  try {
+    return (sessionStorage.getItem(PLAYED) ?? "").split("|").includes(id);
+  } catch {
+    return false;
+  }
+}
+function markPlayed(id: string): void {
+  try {
+    const list = (sessionStorage.getItem(PLAYED) ?? "").split("|").filter(Boolean);
+    if (list.includes(id)) return;
+    sessionStorage.setItem(PLAYED, [...list, id].slice(-30).join("|"));
+  } catch {}
 }
 
 // Reveal timing travels down the tree: `delay` is how long the nearest
@@ -128,13 +155,17 @@ export function useFlip(listRef: RefObject<HTMLElement | null>, orderKey: string
     if (!list) return;
     const rows = Array.from(list.children) as HTMLElement[];
     const canMatrix = typeof DOMMatrixReadOnly !== "undefined";
+    // Tops are measured from the list itself.  offsetTop alone is measured from
+    // the offsetParent, which changes while a phase block's entrance transform
+    // runs, and that made every row jump by the block's offset.
     const reads = rows.map((el) => {
       let offset = 0;
       if (prevTops.current && canMatrix) {
         const t = getComputedStyle(el).transform;
         if (t && t !== "none") offset = new DOMMatrixReadOnly(t).m42;
       }
-      return { el, id: el.dataset.flipId ?? "", top: el.offsetTop, offset };
+      const top = el.offsetParent === list ? el.offsetTop : el.offsetTop - list.offsetTop;
+      return { el, id: el.dataset.flipId ?? "", top, offset };
     });
     const prev = prevTops.current;
     prevTops.current = new Map(reads.map((r) => [r.id, r.top]));

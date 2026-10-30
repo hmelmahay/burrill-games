@@ -17,6 +17,7 @@ import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/ballpark/PlayerPanel";
 import { NumberLine } from "@/app/ballpark/NumberLine";
 import { EDGE_CLIP, REVEAL } from "@/app/ballpark/reveal";
+import { formatterFor } from "@/app/ballpark/format";
 import {
   RANK_POINTS,
   PARTICIPATION_POINTS,
@@ -170,6 +171,8 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
     return a.distance - b.distance;
   });
   const bestDistance = sortedResults[0]?.distance ?? null;
+  // Years print as 1903, not 1,903.
+  const fmt = formatterFor(round);
   const canStart = players.length >= 1 && humansOf(players).length >= 1;
 
   return (
@@ -253,6 +256,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
                   from={staged && Number.isInteger(round.answer) ? 0 : round.answer}
                   value={round.answer}
                   ms={REVEAL.flag}
+                  format={fmt}
                 />{" "}
                 {round.unit}
               </div>
@@ -273,7 +277,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
                     </span>
                   </span>
                   <span className="text-fog text-right">
-                    {r.guess == null ? "no guess" : `${r.guess.toLocaleString()} (off by ${r.distance!.toLocaleString()})`}
+                    {r.guess == null ? "no guess" : `${fmt(r.guess)} (off by ${r.distance!.toLocaleString()})`}
                   </span>
                 </div>
               ))}

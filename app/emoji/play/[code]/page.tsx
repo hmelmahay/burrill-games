@@ -99,14 +99,14 @@ export default function EmojiPlay({ params }: { params: Promise<{ code: string }
                       : "No guess in time"
                 }
                 celebrate={myResult.correct && myPlace === 1}
-                delayMs={REVEAL.title}
+                delayMs={REVEAL.phoneCard}
               >
                 {!myResult.correct && myResult.guess && (
                   <p className="text-sm mt-1 break-words">You guessed “{myResult.guess}”</p>
                 )}
               </ResultCard>
             )}
-            <Reveal kind="fade" delayMs={REVEAL.board}>
+            <Reveal kind="fade" delayMs={REVEAL.phoneBoard}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>
             <p className="text-fog text-sm text-center">Waiting for the host…</p>
