@@ -26,7 +26,7 @@ import {
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
-import { REVEAL, fastestCorrect } from "@/app/quiz/reveal";
+import { RELOAD_HOLD, REVEAL, fastestCorrect } from "@/app/quiz/reveal";
 import { useStaged } from "@/lib/motion";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizPick, botBlindChoice, botQuizDelayMs } from "@/lib/bots";
@@ -41,7 +41,7 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
   const { room, players, subs, error, refresh, playersLoaded } = useRoom("quiz", code);
   const { tvRef } = useSpectator();
   // Display only: play the reveal and podium on screens that saw them start.
-  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at, RELOAD_HOLD);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 

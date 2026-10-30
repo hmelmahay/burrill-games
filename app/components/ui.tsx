@@ -36,7 +36,8 @@ export function Shell({
           <Link href="/" aria-label="Back to games" className="tv-hide shrink-0 px-1 text-sm text-fog">
             ←<span className="hidden sm:inline"> games</span>
           </Link>
-          <Marquee icon={icon} title={game} burstKey={attractKey} className="min-w-0" />
+          {/* The sign keeps its width and the player's name chip gives way. */}
+          <Marquee icon={icon} title={game} burstKey={attractKey} className="shrink-0 max-w-full" />
           <span className="flex-1" />
           {tv && (
             <span className="shrink-0 rounded-full border border-violet px-2 py-0.5 text-sm text-violet">
@@ -44,8 +45,7 @@ export function Shell({
             </span>
           )}
           {suffix && (
-            // Capped so a long player name can't squeeze the game's sign.
-            <span className="min-w-0 max-w-[40%] truncate rounded-full border border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-fog">
+            <span className="min-w-0 truncate rounded-full border border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-fog">
               {suffix}
             </span>
           )}
@@ -332,7 +332,6 @@ export function Leaderboard({
   const sorted = [...players].sort((a, b) => b.score - a.score);
   const ranks = competitionRanks(sorted.map((p) => p.score));
   const rankOf = new Map(sorted.map((p, i) => [p.id, ranks[i]]));
-  const leaders = sorted.filter((p, i) => ranks[i] === 1 && p.score > 0);
   const cacheKey = players
     .map((p) => p.id)
     .sort()
@@ -346,15 +345,23 @@ export function Leaderboard({
   const rows = order.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p);
   // Until the rows slide into the new order they still show last round's
   // standings (old order, numbers not yet counted), so badges and the crown
-  // follow the shown order too and change with the slide.
+  // are worked out from last round's scores and change with the slide.
   const settled = order.join(",") === sorted.map((p) => p.id).join(",");
-  const soleLeader = settled ? (leaders.length === 1 ? leaders[0].id : null) : (rows[0]?.id ?? null);
+  const shown = (p: Player) => (settled ? p.score : p.score - (gains?.[p.id] ?? 0));
+  const rankShown = (p: Player) =>
+    settled ? (rankOf.get(p.id) ?? 1) : 1 + rows.filter((q) => shown(q) > shown(p)).length;
+  const topShown = Math.max(0, ...rows.map(shown));
+  const atTop = rows.filter((p) => shown(p) === topShown);
+  const soleLeader = topShown > 0 && atTop.length === 1 ? atTop[0].id : null;
+  // Counts start with the slide.  Under reduced motion the board shows its
+  // final order at once, so its numbers land with it.
+  const countAt = prefersReducedMotion() ? 0 : FX.mountSettle;
   const big = size === "lg";
   return (
     <ol ref={listRef} className="flex flex-col gap-1.5">
-      {rows.map((p, i) => {
-        const rank = settled ? (rankOf.get(p.id) ?? i + 1) : i + 1;
-        const badge = p.score > 0 && rank <= 3;
+      {rows.map((p) => {
+        const rank = rankShown(p);
+        const badge = shown(p) > 0 && rank <= 3;
         const gain = gains?.[p.id];
         // Staggered by final standing, which doesn't change while rows re-sort.
         const at = sorted.findIndex((s) => s.id === p.id);
@@ -363,7 +370,7 @@ export function Leaderboard({
             key={p.id}
             data-flip-id={p.id}
             className={`hiscore-row gap-3 ${big ? "px-5 py-3 text-2xl" : ""} ${p.id === highlightId ? "is-me" : ""} ${
-              soleLeader === p.id && p.score > 0 ? "is-leader" : ""
+              soleLeader === p.id ? "is-leader" : ""
             }`}
           >
             <span className={`${big ? "w-16" : "w-11"} shrink-0 text-center`}>
@@ -375,7 +382,7 @@ export function Leaderboard({
             </span>
             <PlayerDot id={p.id} name={p.name} size={big ? "lg" : "sm"} />
             <span className="flex-1 font-semibold truncate">
-              {soleLeader === p.id && p.score > 0 ? "👑 " : ""}
+              {soleLeader === p.id ? "👑 " : ""}
               {p.name}
             </span>
             {gain != null && gain !== 0 && (
@@ -385,7 +392,7 @@ export function Leaderboard({
                 delayMs={staged ? delay + 200 + Math.max(0, at) * FX.stagger : null}
               />
             )}
-            <RollingNumber id={p.id} value={p.score} gain={gain} delayMs={200} className="font-mono font-bold" />
+            <RollingNumber id={p.id} value={p.score} gain={gain} delayMs={countAt} className="font-mono font-bold" />
           </li>
         );
       })}

@@ -240,13 +240,15 @@ export default function ChainPlay({ params }: { params: Promise<{ code: string }
                   <Stamp tone="gold" size="lg">
                     Finish!
                   </Stamp>
-                  <h1 className="text-2xl font-extrabold">
-                    {phaseData.duel.winner === me.id
-                      ? "You finished your chain first!"
-                      : `${players.find((p) => p.id === phaseData.duel!.winner)?.name ?? "They"} finished first`}
-                  </h1>
-                  {/* Same burst a race finisher gets for "Chain complete". */}
-                  {phaseData.duel.winner === me.id && <Confetti pieces={30} />}
+                  {/* The winner line and the burst wait for the card beat, after the host's Finish stamp. */}
+                  <Reveal kind="slam" delayMs={REVEAL.card}>
+                    <h1 className="text-2xl font-extrabold">
+                      {phaseData.duel.winner === me.id
+                        ? "You finished your chain first!"
+                        : `${players.find((p) => p.id === phaseData.duel!.winner)?.name ?? "They"} finished first`}
+                    </h1>
+                  </Reveal>
+                  {phaseData.duel.winner === me.id && <Confetti pieces={30} delayMs={REVEAL.card} />}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {players.map((p, seat) => {

@@ -93,6 +93,7 @@ try {
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="${REFRESH_SECONDS}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>${esc(gameName)} — scoreboard</title>
 <style>
   body { background: #0d1026; color: #f2f3ff; margin: 0; padding: 40px 20px;

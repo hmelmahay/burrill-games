@@ -257,6 +257,7 @@ export default function BallparkHost({ params }: { params: Promise<{ code: strin
                   value={round.answer}
                   ms={REVEAL.flag}
                   format={fmt}
+                  landAtEnd
                 />{" "}
                 {round.unit}
               </div>

@@ -85,6 +85,7 @@ export function RollingNumber({
   ms = FX.count,
   format = (n: number) => n.toLocaleString(),
   className = "",
+  landAtEnd = false,
 }: {
   value: number;
   from?: number;
@@ -94,6 +95,9 @@ export function RollingNumber({
   ms?: number;
   format?: (n: number) => string;
   className?: string;
+  // Under reduced motion, jump when the count would end, not when it would
+  // start:  for a count whose last frame is the payoff (Ballpark's answer).
+  landAtEnd?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const { delay, staged } = useRevealTiming();
@@ -133,7 +137,7 @@ export function RollingNumber({
     // Reduced motion skips the count but keeps the beat, so a number can't
     // land on this screen before the room's reveal does.
     if (prefersReducedMotion()) {
-      const jump = setTimeout(() => show(value), delay + delayMs);
+      const jump = setTimeout(() => show(value), delay + delayMs + (landAtEnd ? ms : 0));
       return () => clearTimeout(jump);
     }
     let raf = 0;

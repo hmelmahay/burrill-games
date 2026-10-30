@@ -15,7 +15,7 @@ import {
   QuizSettings,
   QuizPhaseData,
 } from "@/app/quiz/constants";
-import { REVEAL, fastestCorrect } from "@/app/quiz/reveal";
+import { RELOAD_HOLD, REVEAL, fastestCorrect } from "@/app/quiz/reveal";
 
 // The stage screen: a big shared display (TV / iPad in common view) for a Quiz
 // Rush room. Everyone answers on their phone; this screen shows the question,
@@ -36,7 +36,7 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
   const code = rawCode.toUpperCase();
   const { room, players, subs, error } = useRoom("quiz", code);
   // Display only: a stage that joins late shows the final state, no replay.
-  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at, RELOAD_HOLD);
 
   const settings = (room?.settings ?? {}) as QuizSettings;
   const answerSeconds = settings.answerSeconds ?? 20;

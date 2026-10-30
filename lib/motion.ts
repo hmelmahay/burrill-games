@@ -22,15 +22,18 @@ export function prefersReducedMotion(): boolean {
 // Should this screen play the staged version of the current phase? Yes when it
 // watched the phase change happen (within 8s, covering the 5s backstop poll),
 // or when it first loads within 4s of the phase starting. A refreshed phone or
-// a TV that joins late gets the final screen at once instead of a replay, and
-// a tab never replays a phase it already played (a refresh inside the 4s).
+// a TV that joins late gets the final screen at once instead of a replay.
+// A tab that reloads a phase it already played shows it final once the room's
+// beats are behind it (`holdMs`, the game's latest phone beat plus slack).
+// Before that it replays:  showing it final would put this phone's result on
+// screen ahead of the host's payoff.
 // phaseKey: `${room.round_idx}:${room.phase}`, or "" while the room loads.
-export function useStaged(phaseKey: string, startedAt?: string | null): boolean {
+export function useStaged(phaseKey: string, startedAt?: string | null, holdMs: number = FX.reloadHold): boolean {
   const id = phaseKey && startedAt ? `${phaseKey}@${startedAt}` : "";
-  const [s, setS] = useState(() => ({ key: phaseKey, staged: decide(false, startedAt, id) }));
+  const [s, setS] = useState(() => ({ key: phaseKey, staged: decide(false, startedAt, id, holdMs) }));
   let staged = s.staged;
   if (s.key !== phaseKey) {
-    const next = { key: phaseKey, staged: decide(s.key !== "", startedAt, id) };
+    const next = { key: phaseKey, staged: decide(s.key !== "", startedAt, id, holdMs) };
     setS(next);
     staged = next.staged;
   }
@@ -42,12 +45,13 @@ export function useStaged(phaseKey: string, startedAt?: string | null): boolean 
   return staged;
 }
 
-function decide(live: boolean, startedAt: string | null | undefined, id: string): boolean {
+function decide(live: boolean, startedAt: string | null | undefined, id: string, holdMs: number): boolean {
   if (!startedAt) return true;
   const age = Date.now() - Date.parse(startedAt);
   if (!Number.isFinite(age)) return true;
   if (age >= (live ? FX.liveMs : FX.freshMs)) return false;
-  return live || !id || !playedHere(id);
+  if (live || !id || !playedHere(id)) return true;
+  return age < holdMs;
 }
 
 // Phases this tab has staged, newest last.  sessionStorage survives a reload of
@@ -117,6 +121,10 @@ export function useSettledOrder(
     return prev && sameMembers(prev, ids) ? prev : ids;
   });
   const settledOnce = useRef(false);
+  const mountedAt = useRef<number | null>(null);
+  useEffect(() => {
+    mountedAt.current = Date.now();
+  }, []);
   const shownKey = shown.join(",");
   useEffect(() => {
     lastOrders.set(opts.cacheKey, shown);
@@ -124,7 +132,12 @@ export function useSettledOrder(
       settledOnce.current = true;
       return;
     }
-    const wait = settledOnce.current || !opts.staged ? FX.settle : opts.startDelay + FX.mountSettle;
+    let wait = settledOnce.current || !opts.staged ? FX.settle : opts.startDelay + FX.mountSettle;
+    // A score that lands while a fresh board is still hidden waits until the
+    // board has been on screen a beat, so the room still sees the slide.
+    if (opts.staged && mountedAt.current != null) {
+      wait = Math.max(wait, mountedAt.current + opts.startDelay + FX.mountSettle - Date.now());
+    }
     const t = setTimeout(() => {
       settledOnce.current = true;
       setShown(ids);
@@ -174,8 +187,10 @@ export function useFlip(listRef: RefObject<HTMLElement | null>, orderKey: string
       const before = prev.get(r.id);
       if (before == null || typeof r.el.animate !== "function") continue;
       const delta = before + r.offset - r.top;
-      if (Math.abs(delta) < 1) continue;
+      // Cancel first:  a row whose net move is zero must not keep playing an
+      // older slide against its new spot.
       r.el.getAnimations?.().forEach((a) => a.cancel());
+      if (Math.abs(delta) < 1) continue;
       r.el.animate([{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }], {
         duration: FX.flip,
         easing: "cubic-bezier(.2,.8,.2,1)",

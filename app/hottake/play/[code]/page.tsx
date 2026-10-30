@@ -98,7 +98,8 @@ export default function HotTakePlay({ params }: { params: Promise<{ code: string
                   <>
                     <div className="text-sm">{crowdLine}</div>
                     <div className="mt-3">
-                      <Stamp tone="gold" size="lg">
+                      {/* Its own beat once the card has landed. */}
+                      <Stamp tone="gold" size="lg" delayMs={460}>
                         👑 Named
                       </Stamp>
                     </div>

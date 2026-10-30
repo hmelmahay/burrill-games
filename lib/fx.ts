@@ -24,6 +24,7 @@ export const FX = {
   drum: 1100, // Drumroll
   freshMs: 4000, // first look at a phase: stage it only if it started this recently
   liveMs: 8000, // phase change seen live on this screen
+  reloadHold: 2800, // a reloaded tab replays a phase it played only while the room's beats may still be ahead (latest phone beat 2500)
 } as const;
 
 // Player colors: never green or red, which mean right and wrong.

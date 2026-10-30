@@ -45,8 +45,10 @@ export function FinalStandings({
   return (
     <RevealScope staged={staged}>
       <div className="flex flex-col items-center gap-5 w-full">
-        <Marquee title="Game over" size="lg" burstKey="gameover" />
-        {top > 0 ? (
+        {/* Bulbs chase only on a screen that plays the podium, not on a reload. */}
+        <Marquee title="Game over" size="lg" burstKey={staged ? "gameover" : undefined} />
+        {/* An empty list means the players haven't loaded yet, not a scoreless game. */}
+        {players.length === 0 ? null : top > 0 ? (
           <div className="flex items-end justify-center gap-3 w-full max-w-3xl">
             {([2, 1, 3] as const).map((place) => {
               const group = atPlace(place);
@@ -99,7 +101,9 @@ export function FinalStandings({
         {myRank != null && size === "phone" && top > 0 && (
           <Reveal kind="fade" delayMs={1500}>
             <p className="text-fog">
-              You {tied ? "tied for" : "finished"} {ordinal(myRank)} of {players.length}.
+              {sorted[meIdx].score > 0
+                ? `You ${tied ? "tied for" : "finished"} ${ordinal(myRank)} of ${players.length}.`
+                : "No points this game."}
             </p>
           </Reveal>
         )}

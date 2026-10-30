@@ -17,13 +17,13 @@ import {
   QuizSettings,
   QuizPhaseData,
 } from "@/app/quiz/constants";
-import { REVEAL, fastestCorrect } from "@/app/quiz/reveal";
+import { RELOAD_HOLD, REVEAL, fastestCorrect } from "@/app/quiz/reveal";
 
 export default function QuizPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("quiz", code);
   // Display only: play the reveal and podium on screens that saw them start.
-  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at, RELOAD_HOLD);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
 
