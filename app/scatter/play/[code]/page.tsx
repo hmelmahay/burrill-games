@@ -5,9 +5,16 @@ import Link from "next/link";
 import { ScatterRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown } from "@/app/components/ui";
+import { LobbyWait, Reveal, RevealScope, ResultCard } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { useStaged } from "@/lib/motion";
 import { playerKey } from "@/lib/rooms";
 import { POINTS_PER_ANSWER, ScatterPhaseData } from "@/app/scatter/constants";
 import { PlayerPanel } from "@/app/scatter/PlayerPanel";
+
+// The board fades in once the result card has slammed in. The host screen shows
+// its board at once, so the phone never shows the round's points first.
+const BOARD_AT = 400;
 
 export default function ScatterPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -29,6 +36,8 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
     roundSeconds,
     room?.phase === "write",
   );
+  // A refreshed phone gets the final screen at once instead of a replay.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   if (error)
     return (
@@ -50,23 +59,20 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
       </Shell>
     );
 
-  const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
+  const results = phaseData.results ?? [];
+  const myResult = results.find((r) => r.player_id === playerId);
+  const gains: Record<string, number> = {};
+  results.forEach((r) => (gains[r.player_id] = r.gained));
+  const myScored = myResult ? myResult.cells.filter((c) => c.s === "ok").length : 0;
 
   return (
     <Shell title={`Scatter Sprint · ${me.name}`} icon="📝">
-      {room.phase === "lobby" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">🎉</p>
-          <h1 className="text-2xl font-extrabold">You&apos;re in, {me.name}!</h1>
-          <p className="text-fog">Waiting for the host to start…</p>
-          <p className="text-fog text-sm">{players.length} in the room</p>
-        </div>
-      )}
+      {room.phase === "lobby" && <LobbyWait me={me} players={players} />}
 
       {room.phase === "write" && round && (
         <div className="flex flex-col gap-3">
-          <Countdown left={left} total={roundSeconds} />
-          <div className="rounded-xl border-2 border-glow bg-card p-3 text-center">
+          <Countdown left={left} total={roundSeconds} doneLabel="Pencils down" />
+          <div className="neon-panel p-3 text-center">
             <span className="text-fog text-sm mr-2">Everything starts with</span>
             <span className="text-4xl font-extrabold text-glow align-middle">
               {round.letter}
@@ -91,43 +97,45 @@ export default function ScatterPlay({ params }: { params: Promise<{ code: string
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          {myResult && (
-            <div
-              className={`rounded-2xl p-5 text-center pop-in ${
-                myResult.gained > 0 ? "bg-win text-[#03180b]" : "bg-card border border-line"
-              }`}
-            >
-              <div className="text-3xl font-extrabold">+{myResult.gained}</div>
-              <ul className="text-sm mt-2 text-left">
-                {myResult.cells.map((cell, i) => (
-                  <li key={i} className="flex justify-between gap-2">
-                    <span className={cell.s === "ok" ? "" : "line-through opacity-70"}>
-                      {round.categories[i]}: {cell.a || "—"}
-                    </span>
-                    <span className="font-semibold">
-                      {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
-                      {cell.s === "dupe" && "dupe"}
-                      {cell.s === "invalid" && "wrong letter"}
-                      {cell.s === "rejected" && "rejected"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <Leaderboard players={players} highlightId={playerId} />
-          <p className="text-fog text-sm text-center">Waiting for the host…</p>
-        </div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            {myResult && (
+              <ResultCard
+                tone={myResult.gained > 0 ? "win" : "neutral"}
+                points={myResult.gained > 0 ? myResult.gained : undefined}
+                title={
+                  myScored > 0
+                    ? `${myScored} ${myScored === 1 ? "answer" : "answers"} scored`
+                    : "No answers scored this round"
+                }
+              >
+                <ul className="text-sm mt-2 text-left">
+                  {myResult.cells.map((cell, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span className={cell.s === "ok" ? "" : "line-through opacity-70"}>
+                        {round.categories[i]}: {cell.a || "—"}
+                      </span>
+                      <span className="font-semibold">
+                        {cell.s === "ok" && `+${POINTS_PER_ANSWER}`}
+                        {cell.s === "dupe" && "duplicate"}
+                        {cell.s === "invalid" && "wrong letter"}
+                        {cell.s === "rejected" && "rejected"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </ResultCard>
+            )}
+            <Reveal kind="fade" delayMs={BOARD_AT}>
+              <Leaderboard players={players} highlightId={playerId} gains={gains} />
+            </Reveal>
+            <p className="text-fog text-sm text-center">Waiting for the host…</p>
+          </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-4 items-center">
-          <h1 className="text-3xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={playerId} />
-          </div>
-        </div>
+        <FinalStandings players={players} highlightId={playerId} size="phone" staged={staged} />
       )}
     </Shell>
   );

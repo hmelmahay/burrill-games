@@ -80,7 +80,9 @@ export function PlayerPanel({
       <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8">
         <p className="text-3xl">📬</p>
         <p className="font-bold text-xl">Handed in!</p>
-        <p className="text-fog">Waiting for the timer…</p>
+        <p className="text-fog">
+          {left === 0 ? "✏️ Pencils down! Waiting for the host…" : "Waiting for the timer…"}
+        </p>
       </div>
     );
 
@@ -101,11 +103,8 @@ export function PlayerPanel({
           />
         </label>
       ))}
-      <button
-        onClick={handIn}
-        className="rounded-xl bg-glow text-[#1a1000] py-3.5 font-bold text-lg mt-1"
-      >
-        Hand in early
+      <button onClick={handIn} className="coin-btn coin-glow mt-1">
+        <span className="coin-face py-3.5 text-lg">Hand in early</span>
       </button>
       {toggle}
     </div>

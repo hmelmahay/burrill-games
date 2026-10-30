@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, use, useEffect } from "react";
+import Link from "next/link";
 import { supabase, EmojiRound } from "@/lib/supabase";
 import { useRoom, useCountdown } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
@@ -13,9 +14,16 @@ import {
   PlayerChips,
   HostSeatCard,
 } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope } from "@/app/components/fx";
+import { PlayerDot } from "@/app/components/brand";
+import { FinalStandings } from "@/app/components/FinalStandings";
+import { FX, stagger } from "@/lib/fx";
+import { useStaged } from "@/lib/motion";
 import { guessMatches } from "@/lib/matching";
 import { useHostSeat } from "@/lib/useHostSeat";
 import { PlayerPanel } from "@/app/emoji/PlayerPanel";
+import { NowShowing } from "@/app/emoji/NowShowing";
+import { REVEAL } from "@/app/emoji/reveal";
 import {
   BASE_POINTS,
   SPEED_BONUS,
@@ -44,6 +52,8 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
     guessSeconds,
     room?.phase === "guess",
   );
+  // Play the reveal and podium only for a screen that saw them start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   async function startGame() {
     if (!room) return;
@@ -136,7 +146,11 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
 
   return (
-    <Shell title="Emoji Cinema · host" icon="🎬">
+    <Shell
+      title="Emoji Cinema · host"
+      icon="🎬"
+      attractKey={room.phase === "lobby" ? players.length : undefined}
+    >
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -148,26 +162,24 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 1}>
+          <BigBtn
+            onClick={startGame}
+            disabled={busy || players.length < 1}
+            attention={players.length >= 1}
+          >
             {players.length < 1 ? "Waiting for players…" : `Start (${totalRounds} puzzles)`}
           </BigBtn>
         </div>
       )}
 
+      {/* Nothing here waits: a seated host guesses on this screen for speed points. */}
       {room.phase === "guess" && round && (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-sm text-fog">
-            <span>
-              Puzzle {room.round_idx + 1}/{totalRounds} · {round.kind}
-            </span>
-            <span>
-              {answered.length}/{players.length} guessed
-            </span>
-          </div>
+          <p className="text-sm text-fog text-center">
+            Puzzle {room.round_idx + 1}/{totalRounds}
+          </p>
           <Countdown left={left} total={guessSeconds} />
-          <div className="rounded-2xl bg-card border-2 border-violet p-8 text-center">
-            <div className="text-6xl leading-tight tracking-wider">{round.emoji}</div>
-          </div>
+          <NowShowing emoji={round.emoji} kind={round.kind} />
           {seat.canPlay && seat.playerId ? (
             <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
               <PlayerPanel room={room} subs={subs} playerId={seat.playerId} left={left} conceal />
@@ -177,49 +189,81 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
               It&apos;s a {round.kind.toLowerCase()} — type your guess on your phone!
             </p>
           )}
-          <BigBtn onClick={reveal} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
+          <LockInRow players={players} doneIds={answered.map((s) => s.player_id)} label="guessed" />
+          <BigBtn
+            onClick={reveal}
+            disabled={busy}
+            color={left === 0 ? "glow" : "ghost"}
+            attention={left === 0}
+          >
             {left === 0 ? "Time! Reveal answer" : "Reveal early"}
           </BigBtn>
         </div>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-fog text-center">
-            Puzzle {room.round_idx + 1}/{totalRounds}
-          </p>
-          <div className="rounded-2xl bg-card border-2 border-win p-6 text-center">
-            <div className="text-4xl">{round.emoji}</div>
-            <div className="text-2xl font-extrabold mt-2">{round.answer}</div>
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-fog text-center">
+              Puzzle {room.round_idx + 1}/{totalRounds}
+            </p>
+            <NowShowing emoji={round.emoji} kind={round.kind} answer={round.answer} />
+            <GuessList results={phaseData.results ?? []} />
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next puzzle"}
+            </BigBtn>
           </div>
-          <div className="rounded-xl bg-card border border-line p-3 text-sm flex flex-col gap-1">
-            {(phaseData.results ?? []).map((r) => (
-              <div key={r.player_id} className="flex justify-between gap-2">
-                <span className="font-semibold">{r.name}</span>
-                <span className={`truncate flex-1 text-right ${r.correct ? "text-win" : "text-fog"}`}>
-                  {r.guess ?? "—"} {r.correct ? "✓" : ""}
-                </span>
-              </div>
-            ))}
-          </div>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next puzzle"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <a href="/emoji/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+          <Link href="/emoji/host" className="tv-hide underline text-fog">
             Play again with a new room
-          </a>
-        </div>
+          </Link>
+        </FinalStandings>
       )}
     </Shell>
+  );
+}
+
+// Everyone's guess, most points first, so right answers lead. The first five
+// solves score 750 down to 550, so the three fastest get 1ST, 2ND and 3RD;
+// later solves all score 525 and get no badge. Rows rise in from REVEAL.list,
+// 60ms apart.
+function GuessList({ results }: { results: EmojiResult[] }) {
+  const sorted = [...results].sort((a, b) => b.gained - a.gained);
+  const solvers = sorted.filter((r) => r.correct).map((r) => r.player_id);
+  return (
+    <ol className="rounded-xl bg-card border border-line p-3 text-sm flex flex-col gap-1.5">
+      {sorted.map((r, i) => {
+        const place = solvers.indexOf(r.player_id) + 1;
+        return (
+          <Reveal
+            as="li"
+            key={r.player_id}
+            kind="rise"
+            delayMs={REVEAL.list + stagger(i, sorted.length, FX.stagger, 600)}
+            className="flex items-center gap-2"
+          >
+            <span className="w-11 shrink-0 text-center">
+              {place >= 1 && place <= 3 && (
+                <span className={`rank-badge rank-${place}`}>{["1ST", "2ND", "3RD"][place - 1]}</span>
+              )}
+            </span>
+            <PlayerDot id={r.player_id} name={r.name} size="sm" />
+            <span className="font-semibold truncate max-w-[45%]">{r.name}</span>
+            <span className={`flex-1 truncate text-right ${r.correct ? "text-win" : "text-fog"}`}>
+              {r.guess ?? "—"}
+              {r.correct ? " ✓" : ""}
+            </span>
+          </Reveal>
+        );
+      })}
+      {sorted.length === 0 && <li className="text-fog">No guesses this round.</li>}
+    </ol>
   );
 }
