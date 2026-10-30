@@ -36,23 +36,34 @@ function alignOf(pos: number, w: number): Align {
   return "center";
 }
 
-// Walking left to right, each dial takes the first of three rows where its
-// label clears the one before it, else the row that frees up soonest.  Spans
-// are estimated in px for EST_DIAL_PX.
-function labelRows(marksLeftToRight: { i: number; pos: number; label: string }[]): Map<number, number> {
-  const end = [-Infinity, -Infinity, -Infinity];
+// Each dial takes the first of three rows where its label clears every label
+// already in that row.  When none does (a tight cluster of guesses), the dot
+// goes in the least crowded row and its name is left off, since the board
+// below names everyone.  This phone's own dial ("(you)") is placed first, so
+// it always keeps its name.  Spans are estimated in px for EST_DIAL_PX.
+function labelRows(marksLeftToRight: { i: number; pos: number; label: string }[]): {
+  rows: Map<number, number>;
+  hidden: Set<number>;
+} {
+  const spans: [number, number][][] = [[], [], []];
   const rows = new Map<number, number>();
-  for (const m of marksLeftToRight) {
+  const hidden = new Set<number>();
+  const mine = (m: { label: string }) => (m.label.endsWith(" (you)") ? 0 : 1);
+  for (const m of [...marksLeftToRight].sort((p, q) => mine(p) - mine(q))) {
     const w = labelPx(m.label);
     const x = (m.pos / 100) * EST_DIAL_PX;
     const align = alignOf(m.pos, w);
     const [a, b] = align === "start" ? [x - 8, x - 8 + w] : align === "end" ? [x + 8 - w, x + 8] : [x - w / 2, x + w / 2];
-    let r = end.findIndex((e) => e + 6 <= a);
-    if (r < 0) r = end.indexOf(Math.min(...end));
-    end[r] = b;
+    let r = spans.findIndex((row) => row.every(([c, d]) => b + 6 <= c || d + 6 <= a));
+    if (r < 0) {
+      r = spans.reduce((best, row, k) => (row.length < spans[best].length ? k : best), 0);
+      hidden.add(m.i);
+    } else {
+      spans[r].push([a, b]);
+    }
     rows.set(m.i, r);
   }
-  return rows;
+  return { rows, hidden };
 }
 
 // Shared by the host scoreboard and every player's phone, so everyone sees
@@ -77,7 +88,7 @@ export function Dial({
   const popOrder = [...items].sort((a, b) => b.d - a.d);
   const popAt = new Map(popOrder.map((x, k) => [x.i, REVEAL.marks + stagger(k, n, MARK_STEP, MARK_MAX)]));
   // Three label rows, filled in position order.
-  const rowOf = labelRows(
+  const { rows: rowOf, hidden } = labelRows(
     [...items].sort((a, b) => a.m.pos - b.m.pos).map((x) => ({ i: x.i, pos: x.m.pos, label: x.m.label })),
   );
 
@@ -128,12 +139,14 @@ export function Dial({
               <Reveal kind="pop" delayMs={at} className="relative">
                 <div className="w-3 h-3 rounded-full border-2 border-white" style={{ background: m.color }} />
                 {close && <RingBurst delayMs={Math.max(0, REVEAL.bullseye - at)} />}
-                <span
-                  className="absolute text-[11px] font-bold whitespace-nowrap"
-                  style={{ top: 13, lineHeight: "13px", ...label }}
-                >
-                  {m.label}
-                </span>
+                {!hidden.has(i) && (
+                  <span
+                    className="absolute text-[11px] font-bold whitespace-nowrap"
+                    style={{ top: 13, lineHeight: "13px", ...label }}
+                  >
+                    {m.label}
+                  </span>
+                )}
               </Reveal>
             </div>
           );
