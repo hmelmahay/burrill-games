@@ -4,6 +4,8 @@
 
 Twelve party games in one Next.js + Supabase app, deployed at **burrill-games.vercel.app**. A collaboration between Steve (hmelmahay) and Mike (SpyderMYK) — both have push access. Prefer branch → PR → merge; the arcade grew out of the same GitHub-learning habit as [party-bluff](https://github.com/hmelmahay/party-bluff).
 
+**This app is the whole arcade.**  Its landing page (`app/page.tsx`) lists every game:  the twelve here, plus three that run on their own servers and open in their own sites (Party Bluff on Render, Mike's The Spillway on Render, Blitzkrieg Chess on Railway).  The old hub at burrill-arcade.vercel.app only forwards here.  A new game gets its card in `app/page.tsx`, nowhere else.
+
 ## Shape of the app
 
 | Path | Role |
@@ -55,7 +57,7 @@ Takes a Vibe Check clue, a multiple-choice question, or a numeric question; retu
 
 Needs `ANTHROPIC_API_KEY` in the Vercel project. Without it the route returns 503, bots play blind, and the games keep working. Server-side because the bots run in the host's browser and the key must never go there.
 
-Adding bots to a new game is a payload function plus a lobby button — and a `bots: { minHumans }` entry in `app/page.tsx` to advertise it on the hub card.
+Adding bots to a new game is a payload function plus a lobby button — and a `bots: { minHumans }` entry in `app/page.tsx` to advertise it on its arcade card.
 
 ## Running & testing
 

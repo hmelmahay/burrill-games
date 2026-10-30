@@ -163,6 +163,8 @@ body {
   .marquee-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.9em; height: 1.9em; margin-right: 0.5rem; border-radius: 999px; background: var(--fx-acc-soft, rgba(255, 159, 28, 0.12)); border: 1px solid var(--fx-acc, #ff9f1c); }
   .marquee-title { font-family: var(--font-bungee, "Arial Black"), "Arial Black", Impact, sans-serif; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.1; color: var(--fx-acc-core, #ffd29a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .marquee-sub { margin-left: 0.5rem; font-size: 0.75em; color: #9aa0c8; white-space: nowrap; }
+  /* A sign that wraps to two lines on a narrow phone instead of cutting off (the arcade's front sign). */
+  .marquee-wrap .marquee-title { white-space: normal; text-align: center; }
   .marquee-bulbs { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   .marquee-bulbs::before, .marquee-bulbs::after { content: ""; position: absolute; left: 14px; right: 14px; height: 4px; background-image: radial-gradient(circle, var(--fx-acc-core, #ffd29a) 1.5px, rgba(0, 0, 0, 0) 2px); background-size: 10px 4px; background-repeat: repeat-x; }
   .marquee-bulbs::before { top: -3px; }

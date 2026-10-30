@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { GAME_META, type GameSlug } from "@/lib/games";
+import { Marquee } from "@/app/components/brand";
 import { MikeAvatar, SteveAvatar } from "./_home/Avatars";
+import { ServerStatus } from "./_home/ServerStatus";
 
 // Names and icons come from the registry (lib/games.ts).  This list keeps the
 // card order, the blurb, and the bot advertisement.
@@ -66,12 +68,63 @@ const GAMES: {
   },
 ];
 
-// Plain server component, no client JS.  The only motion is CSS:  the cards
-// rise in once, 40ms apart.
+// Games that run on their own servers.  Their buttons open those sites, and a
+// Render server gets a wake-up ping and a status light (see ServerStatus).
+type Outside = {
+  key: string;
+  icon: string;
+  name: string;
+  desc: string;
+  acc: string;
+  url: string;
+  sleeps: boolean;
+  host: string;
+};
+const PARTY_BLUFF: Outside = {
+  key: "partybluff",
+  icon: "🎭",
+  name: "Party Bluff",
+  desc: "Fibbage-style trivia bluffing. Everyone writes a convincing lie, then votes on which answer is the real one. Fool your friends for points. 2–12 players, phones as controllers.",
+  acc: "acc-orange",
+  url: "https://party-bluff.onrender.com",
+  sleeps: true,
+  host: "Host",
+};
+// Mike's games.  The Spillway was called Party Pack until October 2026.
+const MIKES: Outside[] = [
+  {
+    key: "spillway",
+    icon: "🐺",
+    name: "The Spillway",
+    desc: "Mike's nine games in one room:  One Night Werewolf, Spyfall, Coup, Codenames, Avalon, Fishbowl, Liar's Dice, Wits & Wagers, and QE. Host a room, share the 4-letter code, and switch games in the lobby without anyone rejoining. 2–12 players.",
+    acc: "acc-violet",
+    url: "https://party-pack-yhjn.onrender.com",
+    sleeps: true,
+    host: "Host",
+  },
+  {
+    key: "blitzkrieg",
+    icon: "🌫️",
+    name: "Blitzkrieg Chess",
+    desc: "Chess in the fog:  you see only your own pieces, and a referee announces what little you're allowed to know. Play the AI, or share a 5-letter code for an online match with Fischer time controls. 1–2 players.",
+    acc: "acc-gold",
+    url: "https://blitz-chess.up.railway.app",
+    sleeps: false,
+    host: "Play / Host",
+  },
+];
+
+// Card order:  Party Bluff, the twelve games in this app, Mike's games, then
+// the empty cabinet.  The accents are chosen so no two cards of one color
+// stack in a column of the two-column grid.
+// A server component:  the cards rise in once, 40ms apart, with CSS only.
+// The status lights are the only client JS.
 export default function Home() {
+  const rise = (i: number) => ({ animationDelay: `${Math.min(i * 40, 600)}ms` });
   return (
     <main className="flex flex-1 flex-col items-center gap-8 px-4 pb-6 pt-10 sm:px-6 sm:pt-12">
       <div className="flex max-w-full flex-col items-center text-center">
+        <Marquee icon="🕹️" title="Insert imagination to play" burstKey="arcade" className="marquee-wrap mb-4" />
         <div className="flex max-w-full items-center justify-center">
           <SteveAvatar />
           <h1
@@ -82,17 +135,18 @@ export default function Home() {
           </h1>
           <MikeAvatar />
         </div>
-        <p className="text-fog mt-2">Host a game and share the code, or join one.</p>
+        <p className="text-fog mt-2">Pick a game. Host it and share the code, or join a friend&apos;s room.</p>
       </div>
       <div className="grid w-full max-w-4xl gap-4 md:grid-cols-2">
-        {GAMES.map((g, i) => {
+        <OutsideCard game={PARTY_BLUFF} i={0} />
+        {GAMES.map((g, k) => {
           const meta = GAME_META[g.slug];
           return (
             <section
               key={g.slug}
               data-game={g.slug}
               className="cabinet fx-rise flex flex-col gap-3 p-5"
-              style={{ animationDelay: `${Math.min(i * 40, 520)}ms` }}
+              style={rise(k + 1)}
             >
               <div className="flex items-center gap-3">
                 <span aria-hidden className="cabinet-icon">
@@ -118,10 +172,59 @@ export default function Home() {
             </section>
           );
         })}
+        {MIKES.map((g, k) => (
+          <OutsideCard key={g.key} game={g} i={GAMES.length + 1 + k} />
+        ))}
+        <section
+          className="cabinet fx-rise flex flex-col gap-3 border-dashed p-5 opacity-60"
+          style={rise(GAMES.length + 1 + MIKES.length)}
+        >
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="cabinet-icon">
+              🎲
+            </span>
+            <h2 className="font-display min-w-0 text-lg leading-tight text-[var(--fx-acc-core)]">Your next game</h2>
+          </div>
+          <p className="text-fog text-sm flex-1">This cabinet&apos;s still in the shop. More party games are on the way.</p>
+          <span className="font-display self-center text-sm tracking-[0.2em] text-gold">Insert coin</span>
+        </section>
       </div>
-      <a href="https://burrill-arcade.vercel.app" className="text-fog text-sm underline">
-        ← Back to The Burr &amp; Spill
-      </a>
+      <footer className="text-fog text-center text-xs">
+        The Burr &amp; Spill · house-party games from Steve Burrill &amp; Mike Spille · phones as controllers
+      </footer>
     </main>
+  );
+}
+
+function OutsideCard({ game, i }: { game: Outside; i: number }) {
+  return (
+    <section
+      className={`cabinet fx-rise ${game.acc} flex flex-col gap-3 p-5`}
+      style={{ animationDelay: `${Math.min(i * 40, 600)}ms` }}
+    >
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="cabinet-icon">
+          {game.icon}
+        </span>
+        <h2 className="font-display min-w-0 text-lg leading-tight text-[var(--fx-acc-core)]">{game.name}</h2>
+      </div>
+      <p className="text-fog text-sm flex-1">{game.desc}</p>
+      {game.sleeps ? (
+        <ServerStatus url={game.url} />
+      ) : (
+        <span className="flex items-center gap-2 text-xs text-fog">
+          <span aria-hidden className="led on" />
+          Ready to play
+        </span>
+      )}
+      <div className="flex gap-3">
+        <a href={game.url} className="coin-btn coin-glow flex-1">
+          <span className="coin-face py-3">{game.host}</span>
+        </a>
+        <a href={game.url} className="coin-btn coin-ghost flex-1">
+          <span className="coin-face border-violet py-3 text-white">Join</span>
+        </a>
+      </div>
+    </section>
   );
 }
