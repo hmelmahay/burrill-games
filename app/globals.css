@@ -295,6 +295,8 @@ body {
 .tv-mode .tv-hide { display: none !important; }
 .tv-mode .attract, .tv-mode .attract::before, .tv-mode .attract::after,
 .calm .attract, .calm .attract::before, .calm .attract::after { animation: none !important; }
+/* Dots blink on their child spans, which the rule above can't reach. */
+.tv-mode .fx-dots > span, .calm .fx-dots > span { animation: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }

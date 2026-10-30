@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase, Room, Sub, ChainRound } from "@/lib/supabase";
 import { Stamp } from "@/app/components/fx";
-import { Confetti } from "@/app/components/Confetti";
 import { playShake } from "@/lib/motion";
 import { ChainBoard } from "./ChainBoard";
 import {
@@ -159,7 +158,6 @@ export function RacePanel({
         <div className="flex flex-col items-center gap-2 text-center">
           <Stamp tone="win">🏁 Chain complete</Stamp>
           <p className="font-bold text-lg text-win">{prog.score} pts banked!</p>
-          <Confetti pieces={30} />
         </div>
       ) : left === 0 ? (
         <p className="text-center text-fog">⏰ Time! You solved {prog.solved}/{HIDDEN_WORDS}.</p>

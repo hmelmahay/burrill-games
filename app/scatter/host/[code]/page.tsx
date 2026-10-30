@@ -277,10 +277,14 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
           <div className="flex flex-col gap-4">
             {seat.tv ? (
               <>
+                {/* The host's overrules stay on the host screen until scoring,
+                    so this copy can only show the automatic calls. */}
                 <h1 className="text-xl font-extrabold text-center">
                   The host is judging. Duplicates cancel out.
                 </h1>
-                <p className="text-fog text-sm text-center">Letter {round.letter}</p>
+                <p className="text-fog text-sm text-center">
+                  Letter {round.letter}. These are the automatic calls, and the host can still overrule them.
+                </p>
               </>
             ) : (
               <>

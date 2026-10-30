@@ -85,7 +85,9 @@ export default function TTPlay({ params }: { params: Promise<{ code: string }> }
                       : "Nobody fell for it."
                     : myResult.correct
                       ? "You spotted the lie!"
-                      : "Fooled!"
+                      : myResult.vote == null
+                        ? "No vote in time"
+                        : "Fooled!"
                 }
                 delayMs={REVEAL.card}
               />

@@ -7,6 +7,7 @@ import { useRoom, useCountdown } from "@/lib/useRoom";
 import { Shell, Leaderboard, Countdown, MiniTimer } from "@/app/components/ui";
 import { LobbyWait, ResultCard, Reveal, RevealScope, Stamp } from "@/app/components/fx";
 import { FinalStandings } from "@/app/components/FinalStandings";
+import { Confetti } from "@/app/components/Confetti";
 import { playerKey } from "@/lib/rooms";
 import { useStaged } from "@/lib/motion";
 import {
@@ -193,13 +194,14 @@ export default function QuizPlay({ params }: { params: Promise<{ code: string }>
                       ? "No answer"
                       : "Wrong answer"
                 }
-                celebrate={myResult.correct && iWasFastest}
               >
                 <div className="text-sm mt-1 opacity-80">
                   Answer: {CHOICE_LETTERS[round.answer]} · {round.choices[round.answer]}
                 </div>
               </ResultCard>
             )}
+            {/* With the room's Fastest callout, not ahead of it. */}
+            {myResult?.correct && iWasFastest && <Confetti pieces={14} delayMs={REVEAL.fastest} />}
             <Reveal kind="fade" delayMs={REVEAL.board}>
               <Leaderboard players={players} highlightId={playerId} gains={gains} />
             </Reveal>

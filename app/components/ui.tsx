@@ -25,28 +25,33 @@ export function Shell({
   const cut = title.indexOf(" · ");
   const game = cut < 0 ? title : title.slice(0, cut);
   const suffix = cut < 0 ? null : title.slice(cut + 3);
+  // The full-width wrapper clips sideways at the screen edge: a slam or stamp
+  // waits at up to 2x size and must not widen a phone page.  clip (not hidden)
+  // makes no scroll box, so Chain Gang's sticky docks still stick.
   return (
-    <main className={`shell flex flex-1 flex-col gap-4 p-4 max-w-2xl mx-auto w-full ${tv ? "tv-mode" : ""}`}>
-      <div aria-hidden className="fx-floor" />
-      <div className="shell-head flex items-center gap-2">
-        <Link href="/" aria-label="Back to games" className="tv-hide shrink-0 px-1 text-sm text-fog">
-          ←<span className="hidden sm:inline"> games</span>
-        </Link>
-        <Marquee icon={icon} title={game} burstKey={attractKey} className="min-w-0" />
-        <span className="flex-1" />
-        {tv && (
-          <span className="shrink-0 rounded-full border border-violet px-2 py-0.5 text-sm text-violet">
-            📺 TV scoreboard
-          </span>
-        )}
-        {suffix && (
-          <span className="min-w-0 truncate rounded-full border border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-fog">
-            {suffix}
-          </span>
-        )}
-      </div>
-      {children}
-    </main>
+    <div className="flex flex-1 flex-col overflow-x-clip">
+      <main className={`shell flex flex-1 flex-col gap-4 p-4 max-w-2xl mx-auto w-full ${tv ? "tv-mode" : ""}`}>
+        <div aria-hidden className="fx-floor" />
+        <div className="shell-head flex items-center gap-2">
+          <Link href="/" aria-label="Back to games" className="tv-hide shrink-0 px-1 text-sm text-fog">
+            ←<span className="hidden sm:inline"> games</span>
+          </Link>
+          <Marquee icon={icon} title={game} burstKey={attractKey} className="min-w-0" />
+          <span className="flex-1" />
+          {tv && (
+            <span className="shrink-0 rounded-full border border-violet px-2 py-0.5 text-sm text-violet">
+              📺 TV scoreboard
+            </span>
+          )}
+          {suffix && (
+            <span className="min-w-0 truncate rounded-full border border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-fog">
+              {suffix}
+            </span>
+          )}
+        </div>
+        {children}
+      </main>
+    </div>
   );
 }
 

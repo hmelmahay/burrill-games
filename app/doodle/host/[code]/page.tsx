@@ -310,7 +310,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
               <Reveal
                 kind="neon-on"
                 delayMs={REVEAL.word}
-                className="font-display neon-text mt-1 text-3xl uppercase break-words"
+                className="font-display mt-1 text-3xl uppercase break-words"
               >
                 {phaseData.word}
               </Reveal>

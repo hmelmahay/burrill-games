@@ -81,7 +81,12 @@ export function PlayerPanel({
         <p className="text-3xl">📬</p>
         <p className="font-bold text-xl">Handed in!</p>
         <p className="text-fog">
-          {left === 0 ? "✏️ Pencils down! Waiting for the host…" : "Waiting for the timer…"}
+          {/* Only the host screen passes handInRef, and that host has to start judging. */}
+          {left === 0
+            ? handInRef
+              ? "✏️ Pencils down! Start judging below."
+              : "✏️ Pencils down! Waiting for the host…"
+            : "Waiting for the timer…"}
         </p>
       </div>
     );
