@@ -14,11 +14,15 @@ import {
   HostSeatCard,
   PeekGuard,
 } from "@/app/components/ui";
+import { LockInRow, Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import { shuffle } from "@/lib/rooms";
 import { guessMatches } from "@/lib/matching";
 import { useHostSeat } from "@/lib/useHostSeat";
+import { useStaged } from "@/lib/motion";
 import { DoodleCanvas } from "@/app/doodle/DoodleCanvas";
 import { WordPicker, GuessBox } from "@/app/doodle/PlayerControls";
+import { REVEAL, firstGuesser, royaltiesOf } from "@/app/doodle/reveal";
 import WORDS from "@/lib/content/doodle-words.json";
 import {
   GUESS_POINTS,
@@ -55,6 +59,8 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
     drawSeconds,
     room?.phase === "draw",
   );
+  // Play the reveal and the podium only for a screen that saw them start.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   // Who has guessed the word, in order of getting it right.
   const correctSet = new Set<string>();
@@ -196,13 +202,19 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
 
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  const royalties = royaltiesOf(phaseData.results ?? []);
+  const first = firstGuesser(phaseData.results ?? []);
   // A seated host draws on this screen's canvas on their turn and guesses on
   // everyone else's.
   const hostDraws = seat.canPlay && round?.drawer_id === seat.playerId;
   const hostGuesses = seat.canPlay && !!seat.playerId && !hostDraws;
 
   return (
-    <Shell title="Doodle Dash · host" icon="🎨">
+    <Shell
+      title="Doodle Dash · host"
+      icon="🎨"
+      attractKey={room.phase === "lobby" ? players.length : undefined}
+    >
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
           <CodeBadge code={room.code} />
@@ -214,7 +226,7 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
             <h2 className="font-bold mb-2">Players ({players.length})</h2>
             <PlayerChips players={players} />
           </div>
-          <BigBtn onClick={startGame} disabled={busy || players.length < 3}>
+          <BigBtn onClick={startGame} disabled={busy || players.length < 3} attention={players.length >= 3}>
             {players.length < 3
               ? "Need at least 3 players…"
               : `Start (${players.length * (settings.cycles ?? 1)} drawings)`}
@@ -251,8 +263,10 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
         </div>
       )}
 
+      {/* no-enter: nothing above the canvas may carry a transform, or strokes
+          land off the finger while it plays. */}
       {room.phase === "draw" && round && (
-        <div className="flex flex-col gap-3">
+        <div className="no-enter flex flex-col gap-3">
           <div className="flex items-center justify-between text-sm text-fog">
             <span>
               Round {room.round_idx + 1}/{rounds.length} · 🖌️ {round.drawer_name}
@@ -269,56 +283,70 @@ export default function DoodleHost({ params }: { params: Promise<{ code: string 
               </div>
             </PeekGuard>
           )}
-          <DoodleCanvas code={code} roundIdx={room.round_idx} canDraw={hostDraws} />
+          {/* A still frame only: never animate the canvas or its parents. */}
+          <div className="neon-panel p-2">
+            <DoodleCanvas code={code} roundIdx={room.round_idx} canDraw={hostDraws} />
+          </div>
           {hostGuesses && seat.playerId && (
             <GuessBox room={room} subs={subs} playerId={seat.playerId} word={word} conceal />
           )}
-          <div className="flex flex-wrap gap-1.5">
-            {guessers.map((p) => (
-              <span
-                key={p.id}
-                className={`rounded-full px-3 py-1 text-sm font-semibold border ${
-                  correctSet.has(p.id)
-                    ? "bg-win/20 border-win text-win"
-                    : "border-line text-fog"
-                }`}
-              >
-                {correctSet.has(p.id) ? "✓ " : ""}
-                {p.name}
-              </span>
-            ))}
-          </div>
-          <BigBtn onClick={endRound} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
+          <LockInRow players={guessers} doneIds={correctSet} label="got it" />
+          <BigBtn
+            onClick={endRound}
+            disabled={busy}
+            color={left === 0 ? "glow" : "ghost"}
+            attention={left === 0}
+          >
             {left === 0 ? "Time! Score the round" : "End round early"}
           </BigBtn>
         </div>
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl bg-card border-2 border-win p-5 text-center">
-            <div className="text-fog text-sm">{round.drawer_name} was drawing</div>
-            <div className="text-3xl font-extrabold uppercase tracking-wide">
-              {phaseData.word}
+        <RevealScope staged={staged}>
+          <div className="flex flex-col gap-4">
+            <div className="neon-panel p-5 text-center">
+              <div className="text-fog text-sm">{round.drawer_name} was drawing</div>
+              <Reveal
+                kind="neon-on"
+                delayMs={REVEAL.word}
+                className="font-display neon-text mt-1 text-3xl uppercase break-words"
+              >
+                {phaseData.word}
+              </Reveal>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+                {royalties > 0 && (
+                  <Stamp tone="violet" delayMs={REVEAL.royalties}>
+                    Royalties +{royalties}
+                  </Stamp>
+                )}
+                {first ? (
+                  <Stamp tone="gold" delayMs={REVEAL.first} className="max-w-full truncate">
+                    ⚡ First: {first.name}
+                  </Stamp>
+                ) : (
+                  <Stamp tone="fog" delayMs={REVEAL.royalties}>
+                    Nobody got it
+                  </Stamp>
+                )}
+              </div>
             </div>
+            <Reveal kind="fade" delayMs={REVEAL.board}>
+              <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
+            </Reveal>
+            <BigBtn onClick={next} disabled={busy}>
+              {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next artist"}
+            </BigBtn>
           </div>
-          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
-          <BigBtn onClick={next} disabled={busy}>
-            {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next artist"}
-          </BigBtn>
-        </div>
+        </RevealScope>
       )}
 
       {room.phase === "gameover" && (
-        <div className="flex flex-col gap-5 items-center">
-          <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
-          <div className="w-full">
-            <Leaderboard players={players} highlightId={seat.playerId} />
-          </div>
-          <a href="/doodle/host" className="underline text-fog">
+        <FinalStandings players={players} highlightId={seat.playerId} size="host" staged={staged}>
+          <a href="/doodle/host" className="tv-hide underline text-fog">
             Play again with a new room
           </a>
-        </div>
+        </FinalStandings>
       )}
     </Shell>
   );
