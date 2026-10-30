@@ -3,6 +3,11 @@
 import { useEffect, useState, use } from "react";
 import { QuizRound, Player } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { useStaged } from "@/lib/motion";
+import { Fuse, Leaderboard } from "@/app/components/ui";
+import { Reveal, RevealScope, Stamp } from "@/app/components/fx";
+import { Marquee, PlayerDot } from "@/app/components/brand";
+import { FinalStandings } from "@/app/components/FinalStandings";
 import {
   CHOICE_COLORS,
   CHOICE_LETTERS,
@@ -10,6 +15,7 @@ import {
   QuizSettings,
   QuizPhaseData,
 } from "@/app/quiz/constants";
+import { REVEAL, fastestCorrect } from "@/app/quiz/reveal";
 
 // The stage screen: a big shared display (TV / iPad in common view) for a Quiz
 // Rush room. Everyone answers on their phone; this screen shows the question,
@@ -22,11 +28,15 @@ import {
 // lands together on every screen.
 
 const REVEAL_GRACE_SECONDS = 2; // matches the host's buzzer-beater grace
+// The tile's bottom lip, as a literal inline shadow (same as the host tiles).
+const LIP = "inset 0 -5px 0 rgba(0,0,0,.25)";
 
 export default function QuizStage({ params }: { params: Promise<{ code: string }> }) {
   const { code: rawCode } = use(params);
   const code = rawCode.toUpperCase();
   const { room, players, subs, error } = useRoom("quiz", code);
+  // Display only: a stage that joins late shows the final state, no replay.
+  const staged = useStaged(room ? `${room.round_idx}:${room.phase}` : "", room?.phase_started_at);
 
   const settings = (room?.settings ?? {}) as QuizSettings;
   const answerSeconds = settings.answerSeconds ?? 20;
@@ -85,6 +95,9 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
     );
   }
 
+  const gains: Record<string, number> = {};
+  (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+
   return (
     // The lobby already shows the code huge — no need to repeat it up top.
     <Stage code={room.phase === "lobby" ? undefined : room.code}>
@@ -117,7 +130,7 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
                   className={`rounded-2xl p-6 md:p-8 font-bold text-white text-2xl md:text-3xl flex items-center gap-4 transition-opacity duration-500 ${
                     dead ? "opacity-25 line-through" : ""
                   }`}
-                  style={{ background: CHOICE_COLORS[i] }}
+                  style={{ background: CHOICE_COLORS[i], boxShadow: LIP }}
                 >
                   <span className="rounded-xl bg-black/25 px-4 py-2 font-mono">
                     {CHOICE_LETTERS[i]}
@@ -133,60 +146,72 @@ export default function QuizStage({ params }: { params: Promise<{ code: string }
       )}
 
       {room.phase === "reveal" && round && (
-        <div className="flex flex-1 flex-col gap-6">
-          <div className="flex items-baseline justify-between text-fog text-2xl">
-            <span className="font-bold">
-              Question {room.round_idx + 1}
-              <span className="text-fog/60">/{totalQuestions}</span>
-            </span>
-            <span>{round.cat}</span>
-          </div>
-
-          <h1 className="text-4xl md:text-5xl font-extrabold text-center leading-tight text-balance">
-            {round.q}
-          </h1>
-
-          <RevealBars round={round} counts={phaseData.counts ?? []} players={players.length} />
-
-          <FastestCallout phaseData={phaseData} />
-
-          <StageLeaderboard players={players} phaseData={phaseData} />
-
-          {nextSeconds > 0 && (
-            <div className="flex items-center gap-4 text-fog text-xl mt-auto">
-              <span className="whitespace-nowrap">
-                {room.round_idx + 1 >= totalQuestions
-                  ? "Final standings in"
-                  : "Next question in"}
+        <RevealScope staged={staged}>
+          <div className="flex flex-1 flex-col gap-6">
+            <div className="flex items-baseline justify-between text-fog text-2xl">
+              <span className="font-bold">
+                Question {room.round_idx + 1}
+                <span className="text-fog/60">/{totalQuestions}</span>
               </span>
-              <div className="flex-1 h-2.5 rounded-full bg-line overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-violet transition-[width] duration-300"
-                  style={{ width: `${(nextLeft / nextSeconds) * 100}%` }}
-                />
-              </div>
-              <span className="font-mono text-2xl font-bold w-14 text-right">
-                {nextLeft}s
-              </span>
+              <span>{round.cat}</span>
             </div>
-          )}
-        </div>
+
+            <h1 className="text-4xl md:text-5xl font-extrabold text-center leading-tight text-balance">
+              {round.q}
+            </h1>
+
+            <RevealBars round={round} counts={phaseData.counts ?? []} players={players.length} />
+
+            <FastestCallout phaseData={phaseData} />
+
+            {/* The size="lg" board keeps its badges and gain chips at phone
+                size, so scale those up here for a room reading a TV. */}
+            <Reveal
+              kind="fade"
+              delayMs={REVEAL.board}
+              className="[&_.gain-chip]:text-xl [&_.rank-badge]:text-base"
+            >
+              <Leaderboard players={players} gains={gains} size="lg" />
+            </Reveal>
+
+            {nextSeconds > 0 && (
+              <div className="flex items-center gap-4 text-fog text-xl mt-auto">
+                <span className="whitespace-nowrap">
+                  {room.round_idx + 1 >= totalQuestions
+                    ? "Final standings in"
+                    : "Next question in"}
+                </span>
+                <Fuse left={nextLeft} total={nextSeconds} color="#7c5cff" className="h-2.5 flex-1" />
+                <span className="font-mono text-2xl font-bold w-14 text-right tabular-nums">
+                  {nextLeft}s
+                </span>
+              </div>
+            )}
+          </div>
+        </RevealScope>
       )}
 
-      {room.phase === "gameover" && <Podium players={players} />}
+      {room.phase === "gameover" && (
+        <div className="flex flex-1 flex-col justify-center">
+          <FinalStandings players={players} size="stage" staged={staged} />
+        </div>
+      )}
     </Stage>
   );
 }
 
 // --- layout chrome ---
 
+// `calm` stops every attract loop on this big screen (bulb chases, breathing
+// rings); one-shot entrances and reveals still play once.
 function Stage({ code, children }: { code?: string; children: React.ReactNode }) {
   return (
-    <main className="flex flex-1 flex-col p-6 md:p-10 max-w-6xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-4 text-fog">
-        <span className="text-xl font-bold">⚡ Quiz Rush</span>
+    <main className="calm flex flex-1 flex-col p-6 md:p-10 max-w-6xl mx-auto w-full">
+      <div aria-hidden className="fx-floor" />
+      <div className="flex items-center justify-between gap-4 mb-4 text-fog">
+        <Marquee icon="⚡" title="Quiz Rush" size="lg" />
         {code && (
-          <span className="text-xl">
+          <span className="text-xl whitespace-nowrap">
             Join code{" "}
             <span className="font-mono font-extrabold text-glow tracking-[0.2em]">{code}</span>
           </span>
@@ -209,18 +234,22 @@ function StageLobby({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-10 text-center">
       <div>
-        <div className="text-fog text-2xl uppercase tracking-[0.4em] mb-3">Join code</div>
-        <div className="text-9xl font-extrabold font-mono tracking-[0.25em] text-glow">{code}</div>
-        <p className="text-fog text-2xl mt-4">
+        <div className="text-fog text-2xl uppercase tracking-[0.4em] mb-4">Join code</div>
+        <div className="code-tiles text-8xl" role="img" aria-label={`Join code ${code.split("").join(" ")}`}>
+          {code.split("").map((ch, i) => (
+            <span key={i} aria-hidden className="code-tile" style={{ animationDelay: `${120 + i * 70}ms` }}>
+              {ch}
+            </span>
+          ))}
+        </div>
+        <p className="text-fog text-2xl mt-6">
           Grab your phone → Quiz Rush → Join · {totalQuestions} questions
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-3 max-w-3xl">
         {players.map((p) => (
-          <span
-            key={p.id}
-            className="pop-in rounded-full bg-card border-2 border-line px-6 py-3 text-2xl font-semibold"
-          >
+          <span key={p.id} className="token pop-in text-2xl py-1.5 pr-5">
+            <PlayerDot id={p.id} name={p.name} size="lg" />
             {p.name}
           </span>
         ))}
@@ -232,30 +261,33 @@ function StageLobby({
   );
 }
 
+// Same colors as the phones' Countdown: green, orange at 10s, red at 5s. The
+// number ticks once a second from 5 to 1; overtime gets a one-shot stamp.
 function StageClock({ left, total, overtime }: { left: number; total: number; overtime: boolean }) {
-  const pct = total > 0 ? (left / total) * 100 : 0;
+  const color = left <= 5 ? "#e74c3c" : left <= 10 ? "#ff9f1c" : "#2ecc71";
   return (
     <div className="flex items-center gap-5">
-      <div className="flex-1 h-6 rounded-full bg-line overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-[width] duration-300 ${
-            left <= 5 ? "bg-lose" : "bg-win"
+      <Fuse left={left} total={total} color={color} className="h-6 flex-1" />
+      {overtime ? (
+        <Stamp tone="lose" size="lg">
+          Time!
+        </Stamp>
+      ) : (
+        <span
+          className={`font-mono text-5xl font-extrabold w-28 text-right tabular-nums ${
+            left <= 5 ? "text-lose" : ""
           }`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span
-        className={`font-mono text-5xl font-extrabold w-28 text-right ${
-          overtime ? "text-lose animate-pulse" : left <= 5 ? "text-lose" : ""
-        }`}
-      >
-        {overtime ? "⏰" : `${left}s`}
-      </span>
+        >
+          <span key={left <= 5 ? left : "n"} className={left <= 5 && left > 0 ? "fx-tick" : ""}>
+            {left}s
+          </span>
+        </span>
+      )}
     </div>
   );
 }
 
-// Who's answered — names light up as submissions land, never which choice.
+// Who's answered: names light up as submissions land, never which choice.
 function AnsweredTicker({
   players,
   answeredIds,
@@ -273,15 +305,12 @@ function AnsweredTicker({
           const done = answeredIds.has(p.id);
           return (
             <span
-              key={p.id}
-              className={`rounded-full px-4 py-1.5 text-lg font-semibold border-2 transition-all duration-300 ${
-                done
-                  ? "bg-win/20 border-win text-win"
-                  : "bg-card border-line text-fog"
-              }`}
+              key={`${p.id}-${done ? 1 : 0}`}
+              className={`token text-lg ${done ? "is-done pop-in" : "text-fog"}`}
             >
-              {done ? "✓ " : ""}
+              <PlayerDot id={p.id} name={p.name} />
               {p.name}
+              {done ? " ✓" : ""}
             </span>
           );
         })}
@@ -292,6 +321,8 @@ function AnsweredTicker({
 
 // --- reveal ---
 
+// Bars grow from zero, one after another; at rest (or on a late screen) they
+// simply sit at their final width. Literal colors for older TV browsers.
 function RevealBars({
   round,
   counts,
@@ -326,12 +357,15 @@ function RevealBars({
                 {isAnswer ? "✅ " : ""}
                 {c}
               </div>
-              <div className="h-5 rounded-full bg-line overflow-hidden">
-                <div
-                  className={`h-full rounded-full grow-bar ${
-                    isAnswer ? "bg-win" : "bg-fog/40"
-                  }`}
-                  style={{ width: `${(n / max) * 100}%` }}
+              <div className="vote-track h-5">
+                <Reveal
+                  kind="bar-x"
+                  delayMs={i * 120}
+                  className="vote-fill"
+                  style={{
+                    width: `${(n / max) * 100}%`,
+                    background: isAnswer ? "#2ecc71" : "rgba(154,160,200,.4)",
+                  }}
                 />
               </div>
             </div>
@@ -341,111 +375,24 @@ function RevealBars({
           </div>
         );
       })}
-      {/* Bars sweep in on mount; width is inline so the sweep ends at the real value. */}
-      <style>{`
-        @keyframes growBar { from { width: 0; } }
-        .grow-bar { animation: growBar 0.8s ease-out; }
-      `}</style>
     </div>
   );
 }
 
-// pointsForElapsed is monotonic in speed, so the biggest gain among correct
-// answers belongs to the fastest correct player.
+// Lands at the same beat as the host's callout.
 function FastestCallout({ phaseData }: { phaseData: QuizPhaseData }) {
-  const correct = (phaseData.results ?? []).filter((r) => r.correct);
-  if (correct.length === 0) {
-    return (
-      <p className="text-center text-2xl text-fog">😱 Nobody got it!</p>
-    );
-  }
-  const fastest = correct.reduce((a, b) => (b.gained > a.gained ? b : a));
+  const fastest = fastestCorrect(phaseData.results);
   return (
-    <p className="pop-in text-center text-3xl font-bold">
-      ⚡ Fastest: <span className="text-glow">{fastest.name}</span>{" "}
-      <span className="text-win">+{fastest.gained}</span>
-    </p>
-  );
-}
-
-function StageLeaderboard({
-  players,
-  phaseData,
-}: {
-  players: Player[];
-  phaseData: QuizPhaseData;
-}) {
-  const gains: Record<string, number> = {};
-  (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
-  const sorted = [...players].sort((a, b) => b.score - a.score);
-  return (
-    <ol className="flex flex-col gap-2">
-      {sorted.map((p, i) => (
-        <li
-          key={p.id}
-          className="flex items-center gap-4 rounded-xl px-5 py-3 bg-card border border-line text-2xl"
-        >
-          <span className="w-10 text-center font-bold text-fog">
-            {i === 0 ? "👑" : i + 1}
-          </span>
-          <span className="flex-1 font-semibold truncate">{p.name}</span>
-          {gains[p.id] != null && gains[p.id] > 0 && (
-            <span className="text-win font-bold pop-in">+{gains[p.id]}</span>
-          )}
-          <span className="font-mono font-bold w-24 text-right">{p.score}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-// --- gameover ---
-
-function Podium({ players }: { players: Player[] }) {
-  const sorted = [...players].sort((a, b) => b.score - a.score);
-  const top = sorted.slice(0, 3);
-  const rest = sorted.slice(3);
-  // Render order 2nd · 1st · 3rd so the podium has its classic silhouette.
-  const order = [top[1], top[0], top[2]].filter(Boolean) as Player[];
-  const heights: Record<string, string> = top[0]
-    ? { [top[0].id]: "h-56", ...(top[1] ? { [top[1].id]: "h-40" } : {}), ...(top[2] ? { [top[2].id]: "h-28" } : {}) }
-    : {};
-  const medals: Record<string, string> = top[0]
-    ? { [top[0].id]: "🥇", ...(top[1] ? { [top[1].id]: "🥈" } : {}), ...(top[2] ? { [top[2].id]: "🥉" } : {}) }
-    : {};
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-10">
-      <h1 className="text-6xl font-extrabold">🏆 Final standings</h1>
-      <div className="flex items-end justify-center gap-6 w-full max-w-3xl">
-        {order.map((p) => (
-          <div key={p.id} className="flex-1 flex flex-col items-center gap-3 pop-in">
-            <span className="text-5xl">{medals[p.id]}</span>
-            <span className="text-3xl font-extrabold text-center truncate max-w-full">
-              {p.name}
-            </span>
-            <span className="font-mono text-2xl font-bold text-fog">{p.score}</span>
-            <div
-              className={`w-full rounded-t-2xl bg-card border-2 border-line border-b-0 ${
-                heights[p.id] ?? "h-24"
-              }`}
-            />
-          </div>
-        ))}
-      </div>
-      {rest.length > 0 && (
-        <ol className="flex flex-col gap-1.5 w-full max-w-xl">
-          {rest.map((p, i) => (
-            <li
-              key={p.id}
-              className="flex items-center gap-4 rounded-lg px-4 py-2 bg-card border border-line text-xl"
-            >
-              <span className="w-8 text-center font-bold text-fog">{i + 4}</span>
-              <span className="flex-1 font-semibold truncate">{p.name}</span>
-              <span className="font-mono font-bold">{p.score}</span>
-            </li>
-          ))}
-        </ol>
+    <Reveal kind="fade" delayMs={REVEAL.fastest}>
+      {fastest ? (
+        <p className="text-center text-3xl font-bold">
+          ⚡ <Stamp tone="gold" size="lg">Fastest</Stamp>{" "}
+          <span className="text-glow">{fastest.name}</span>{" "}
+          <span className="text-win">+{fastest.gained.toLocaleString()}</span>
+        </p>
+      ) : (
+        <p className="text-center text-2xl text-fog">😱 Nobody got it!</p>
       )}
-    </div>
+    </Reveal>
   );
 }

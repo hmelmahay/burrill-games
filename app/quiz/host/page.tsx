@@ -47,7 +47,7 @@ export default function QuizHostSetup() {
   return (
     <Shell title="Quiz Rush" icon="⚡">
       <div className="flex flex-1 flex-col justify-center gap-6 max-w-sm mx-auto w-full">
-        <h1 className="text-3xl font-extrabold text-center">Host a quiz</h1>
+        <h1 className="text-3xl font-extrabold text-center">Host Quiz Rush</h1>
         <label className="flex flex-col gap-1">
           <span className="font-semibold">Your name</span>
           <input
