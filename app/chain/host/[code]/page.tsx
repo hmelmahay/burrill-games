@@ -12,8 +12,9 @@ import {
   Countdown,
   Leaderboard,
   PlayerChips,
+  HostSeatCard,
 } from "@/app/components/ui";
-import { playerKey } from "@/lib/rooms";
+import { useHostSeat } from "@/lib/useHostSeat";
 import { ChainBoard } from "@/app/chain/ChainBoard";
 import { RacePanel } from "@/app/chain/RacePanel";
 import { DuelPanel } from "@/app/chain/DuelPanel";
@@ -33,7 +34,7 @@ import {
 
 export default function ChainHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("chain", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("chain", code);
   const { tv, tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
@@ -52,12 +53,8 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
   const phaseData = (room?.phase_data ?? {}) as ChainPhaseData;
   const duel = phaseData.duel;
 
-  const [playerId, setPlayerId] = useState<string | null>(null);
-  useEffect(() => {
-    setPlayerId(localStorage.getItem(playerKey(code)));
-  }, [code]);
-  const me = players.find((p) => p.id === playerId);
-  const canPlay = !!me && !tv;
+  const seat = useHostSeat("chain", code, players, refresh, playersLoaded);
+  const { playerId, me, canPlay } = seat;
 
   const left = useCountdown(
     `${room?.round_idx}-${room?.phase}`,
@@ -342,7 +339,8 @@ export default function ChainHost({ params }: { params: Promise<{ code: string }
     <Shell title="Chain Gang · host" icon="⛓️">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="chain" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             {mode === "duel"
               ? `Duel needs exactly two players — each gets their OWN chain. Miss and one of your letters shows, but the turn swaps. ${duelSeconds}s per turn; first to the bottom of their chain wins.`

@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
 import { supabase, Game, Card, Song } from "@/lib/needle/types";
 import { checkWin } from "@/lib/needle/bingo";
+import { claimCard, needleCardKey, needleNameKey } from "@/lib/needle/cards";
 import { YouTubePlayer, YouTubePlayerHandle } from "@/app/needle/YouTubePlayer";
+import { BingoCard } from "@/app/needle/BingoCard";
 import { useSpectator } from "@/lib/useSpectator";
 
 export default function HostGame({
@@ -19,6 +21,22 @@ export default function HostGame({
     Record<string, { name: string; preview: string | null }>
   >({});
   const [cards, setCards] = useState<Card[]>([]);
+  // The host can hold a card too and play from this screen.
+  const [myCardId, setMyCardId] = useState<string | null>(null);
+  const [seatName, setSeatName] = useState("");
+  const [seatBusy, setSeatBusy] = useState(false);
+  const [seatErr, setSeatErr] = useState<string | null>(null);
+  const [peekTitles, setPeekTitles] = useState(false);
+  // A fast double Enter must not deal the host two cards.
+  const takingRef = useRef(false);
+  useEffect(() => {
+    if (tvRef.current) return;
+    try {
+      setMyCardId(localStorage.getItem(needleCardKey(code)));
+    } catch {
+      // Site storage blocked: the host just starts without a card.
+    }
+  }, [code, tvRef]);
   const [verifyId, setVerifyId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -31,9 +49,11 @@ export default function HostGame({
   const [isAudioDevice, setIsAudioDevice] = useState(true);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(`needle-audio-${code}`);
-    if (stored === "false") setIsAudioDevice(false);
-    if (stored === "true") setIsAudioDevice(true);
+    try {
+      const stored = localStorage.getItem(`needle-audio-${code}`);
+      if (stored === "false") setIsAudioDevice(false);
+      if (stored === "true") setIsAudioDevice(true);
+    } catch {}
   }, [code]);
   function toggleAudioDevice() {
     setIsAudioDevice((v) => {
@@ -53,9 +73,11 @@ export default function HostGame({
   const [manualSearch, setManualSearch] = useState("");
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (localStorage.getItem(`needle-manual-${code}`) === "true") {
-      setManualMode(true);
-    }
+    try {
+      if (localStorage.getItem(`needle-manual-${code}`) === "true") {
+        setManualMode(true);
+      }
+    } catch {}
   }, [code]);
   function toggleManualMode() {
     setManualMode((v) => {
@@ -265,10 +287,35 @@ export default function HostGame({
   const nextId =
     game?.play_order.find((id) => !calledSet.has(id)) ?? null;
   const lastCalled = game?.called[game.called.length - 1];
-  // On a TV in front of the room, song titles are the answers — mask them
-  // except on Beginner (auto-mark makes them public) or once the game ends.
-  const hideTitles =
-    tv && game != null && game.difficulty !== "beginner" && game.status !== "ended";
+  const myCard = tv ? undefined : cards.find((c) => c.id === myCardId);
+  // Song titles are the answers — mask them on a TV in front of the room and
+  // for a host playing their own card (who can peek), except on Beginner
+  // (auto-mark makes them public) or once the game ends.
+  const titlesAreAnswers =
+    game != null && game.difficulty !== "beginner" && game.status !== "ended";
+  const hideTitles = titlesAreAnswers && (tv || (!!myCard && !peekTitles));
+
+  async function takeCard() {
+    const n = seatName.trim();
+    if (!game || !n || myCard || takingRef.current) return;
+    takingRef.current = true;
+    setSeatBusy(true);
+    setSeatErr(null);
+    const { card, error } = await claimCard(game.id, n);
+    if (error || !card) {
+      setSeatErr(error ?? "Couldn't claim a card. Try again.");
+      takingRef.current = false;
+      setSeatBusy(false);
+      return;
+    }
+    try {
+      localStorage.setItem(needleCardKey(code), card.id);
+      localStorage.setItem(needleNameKey(code), n);
+    } catch {}
+    setCards((cs) => cs.map((c) => (c.id === card.id ? card : c)));
+    setMyCardId(card.id);
+    setSeatBusy(false);
+  }
 
   function nextSong() {
     if (!game || !nextId) return;
@@ -450,6 +497,35 @@ export default function HostGame({
         </div>
       </div>
 
+      {!tv && !myCard && game.status !== "ended" && (
+        <div className="rounded-2xl border-2 border-indigo-500 p-3 flex flex-col gap-2">
+          <div className="font-semibold">🎟️ Playing too?</div>
+          <div className="flex gap-2">
+            <input
+              value={seatName}
+              onChange={(e) => setSeatName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && takeCard()}
+              placeholder="Your name"
+              maxLength={20}
+              autoComplete="off"
+              className="min-w-0 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2"
+            />
+            <button
+              onClick={takeCard}
+              disabled={seatBusy || !seatName.trim()}
+              className="shrink-0 rounded-lg bg-indigo-600 text-white px-4 py-2 font-semibold disabled:opacity-40"
+            >
+              {seatBusy ? "Dealing…" : "Get a card"}
+            </button>
+          </div>
+          <div className="text-xs text-zinc-500">
+            Play a card right on this screen. Song titles hide while you play so
+            you&apos;re listening like everyone else.
+          </div>
+          {seatErr && <p className="text-red-600 text-sm">{seatErr}</p>}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={toggleManualMode}
@@ -479,8 +555,17 @@ export default function HostGame({
         // Keep the YT player mounted for mixed pools, but only show it when a
         // YouTube-sourced song is actually the current one; Apple previews play
         // invisibly through an <audio> element.
-        <div className={lastCalled && !songsById[lastCalled]?.preview ? "" : "hidden"}>
+        <div className={lastCalled && !songsById[lastCalled]?.preview ? "relative" : "hidden"}>
           <YouTubePlayer ref={playerRef} onUnplayable={handleUnplayable} />
+          {/* A host playing a card should only hear the clip; the video would
+              give the song away. The mask also takes taps, so the hidden
+              player can't be opened full screen; Show titles removes it. */}
+          {hideTitles && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-zinc-900 text-center text-zinc-300">
+              <span className="font-semibold">🎵 Listen closely…</span>
+              <span className="text-xs text-zinc-500">Tap Show titles to see the video.</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -552,8 +637,24 @@ export default function HostGame({
                 : songsById[lastCalled]?.name ?? lastCalled}
           </div>
         </div>
-        <div className="text-3xl font-mono">{countdown}s</div>
+        <div className="flex items-center gap-3">
+          {myCard && titlesAreAnswers && (
+            <button
+              onClick={() => setPeekTitles((v) => !v)}
+              className="rounded-md border border-zinc-400 dark:border-zinc-600 px-2 py-1 text-xs"
+            >
+              {peekTitles ? "🙈 Hide titles" : "👁 Show titles"}
+            </button>
+          )}
+          <div className="text-3xl font-mono">{countdown}s</div>
+        </div>
       </div>
+
+      {myCard && (
+        <section className="rounded-2xl border-2 border-indigo-500 p-3">
+          <BingoCard game={game} card={myCard} />
+        </section>
+      )}
 
       <div className="flex items-center justify-between rounded-lg border border-zinc-300 dark:border-zinc-700 p-2 gap-3">
         <button
@@ -707,8 +808,9 @@ export default function HostGame({
         </h2>
         {hideTitles ? (
           <p className="text-sm text-zinc-500">
-            Titles hidden on the big screen — that&apos;s the game! Full list appears
-            when the game ends.
+            {tv
+              ? "Titles hidden on the big screen — that's the game! Full list appears when the game ends."
+              : "Titles hidden while you play a card. Tap Show titles to peek."}
           </p>
         ) : (
           <ol className="text-sm space-y-0.5 list-decimal list-inside">

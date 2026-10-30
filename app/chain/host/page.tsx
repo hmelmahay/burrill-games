@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, BigBtn } from "@/app/components/ui";
-import { createRoom, shuffle, hostKey, joinRoom, playerKey } from "@/lib/rooms";
+import { createRoom, shuffle, hostKey, seatCreator } from "@/lib/rooms";
 import { CHAIN_BANK } from "@/lib/content/chains";
 import { ChainMode } from "@/app/chain/constants";
 
@@ -36,17 +36,10 @@ export default function ChainHostSetup() {
       setBusy(false);
       return;
     }
-    localStorage.setItem(hostKey(room.code), "true");
-    const n = name.trim();
-    if (n) {
-      const { player, error: jErr } = await joinRoom("chain", room.code, n);
-      if (jErr || !player) {
-        setErr(jErr ?? "Room made, but couldn't seat you as a player.");
-        setBusy(false);
-        return;
-      }
-      localStorage.setItem(playerKey(room.code), player.id);
-    }
+    try {
+      localStorage.setItem(hostKey(room.code), "true");
+    } catch {}
+    await seatCreator("chain", room.code, name);
     router.push(`/chain/host/${room.code}`);
   }
 

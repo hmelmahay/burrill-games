@@ -2,48 +2,25 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { supabase, MajorityRound } from "@/lib/supabase";
+import { MajorityRound } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { Shell, Leaderboard } from "@/app/components/ui";
 import { playerKey } from "@/lib/rooms";
 import { MajorityPhaseData } from "@/app/majority/constants";
+import { PlayerPanel } from "@/app/majority/PlayerPanel";
 
 export default function MajorityPlay({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { room, players, subs, error } = useRoom("majority", code);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [vote, setVote] = useState<"a" | "b" | null>(null);
-  const [pred, setPred] = useState<"a" | "b" | null>(null);
-  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     setPlayerId(localStorage.getItem(playerKey(code)));
   }, [code]);
 
-  useEffect(() => {
-    setVote(null);
-    setPred(null);
-    setSent(false);
-  }, [room?.round_idx]);
-
   const round = room ? (room.rounds[room.round_idx] as MajorityRound | undefined) : undefined;
   const phaseData = (room?.phase_data ?? {}) as MajorityPhaseData;
   const me = players.find((p) => p.id === playerId);
-  const mySub = subs.find(
-    (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
-  );
-
-  async function submit(v: "a" | "b", p: "a" | "b") {
-    if (!room || !playerId || mySub || sent) return;
-    setSent(true);
-    const { error: e } = await supabase.from("arcade_subs").insert({
-      room_id: room.id,
-      player_id: playerId,
-      round_idx: room.round_idx,
-      payload: { vote: v, pred: p },
-    });
-    if (e && e.code !== "23505") setSent(false);
-  }
 
   if (error)
     return (
@@ -66,7 +43,6 @@ export default function MajorityPlay({ params }: { params: Promise<{ code: strin
     );
 
   const myResult = (phaseData.results ?? []).find((r) => r.player_id === playerId);
-  const locked = sent || !!mySub;
 
   return (
     <Shell title={`Majority Rules · ${me.name}`} icon="🐑">
@@ -79,67 +55,8 @@ export default function MajorityPlay({ params }: { params: Promise<{ code: strin
         </div>
       )}
 
-      {room.phase === "vote" && round && !locked && (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <h2 className="font-bold text-center text-lg">1 · Your pick?</h2>
-            <button
-              onClick={() => setVote("a")}
-              className={`rounded-xl p-4 font-bold text-lg bg-glow text-[#1a1000] ${
-                vote === "a" ? "ring-4 ring-white" : vote ? "opacity-40" : ""
-              }`}
-            >
-              {round.a}
-            </button>
-            <button
-              onClick={() => setVote("b")}
-              className={`rounded-xl p-4 font-bold text-lg bg-violet text-white ${
-                vote === "b" ? "ring-4 ring-white" : vote ? "opacity-40" : ""
-              }`}
-            >
-              {round.b}
-            </button>
-          </div>
-          {vote && (
-            <div className="flex flex-col gap-2 pop-in">
-              <h2 className="font-bold text-center text-lg">
-                2 · What will the <span className="underline">majority</span> pick?
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    setPred("a");
-                    submit(vote, "a");
-                  }}
-                  className="rounded-xl p-4 font-bold bg-glow/80 text-[#1a1000]"
-                >
-                  {round.a}
-                </button>
-                <button
-                  onClick={() => {
-                    setPred("b");
-                    submit(vote, "b");
-                  }}
-                  className="rounded-xl p-4 font-bold bg-violet/80 text-white"
-                >
-                  {round.b}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {room.phase === "vote" && round && locked && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <p className="text-3xl">🔒</p>
-          <p className="font-bold text-xl">Locked in!</p>
-          <p className="text-fog text-sm">
-            You picked {vote === "a" ? round.a : vote === "b" ? round.b : "…"} and predicted the
-            room goes {pred === "a" ? round.a : pred === "b" ? round.b : "…"}.
-          </p>
-          <p className="text-fog">Waiting for everyone…</p>
-        </div>
+      {room.phase === "vote" && round && playerId && (
+        <PlayerPanel room={room} subs={subs} playerId={playerId} />
       )}
 
       {room.phase === "reveal" && round && (

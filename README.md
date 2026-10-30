@@ -2,7 +2,8 @@
 
 Twelve party games in one Next.js + Supabase app. Phones are the controllers,
 any screen with the host URL is the board, and `/tv` turns a smart TV into a
-read-only scoreboard with just the room code.
+read-only scoreboard with just the room code.  Whoever runs the host screen can
+play from it too, no second phone needed.
 
 Live: https://burrill-games.vercel.app · Hub: https://burrill-arcade.vercel.app
 

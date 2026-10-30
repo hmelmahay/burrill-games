@@ -4,8 +4,10 @@ import { useRef, useState, use, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
-import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
+import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
 import { shuffle } from "@/lib/rooms";
+import { useHostSeat } from "@/lib/useHostSeat";
+import { PlayerPanel } from "@/app/twotruths/PlayerPanel";
 import {
   VOTER_POINTS,
   AUTHOR_POINTS_PER_FOOL,
@@ -16,8 +18,9 @@ import {
 
 export default function TTHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("twotruths", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("twotruths", code);
   const { tvRef } = useSpectator();
+  const seat = useHostSeat("twotruths", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
 
@@ -61,10 +64,14 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
     if (advancingRef.current === key) return;
     advancingRef.current = key;
     const statements = (authorSub.payload as { statements?: string[] }).statements ?? [];
+    // Only for this round: if a Skip already moved the room on, this must not
+    // drop the next round into voting with no statements.
     supabase
       .from("arcade_rooms")
       .update({ phase: "vote", phase_data: { statements } })
       .eq("id", room.id)
+      .eq("round_idx", room.round_idx)
+      .eq("phase", "write")
       .then(({ error: e }) => {
         if (e) console.error("open voting failed:", e.message);
       });
@@ -156,12 +163,15 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
 
   const gains: Record<string, number> = {};
   (phaseData.results ?? []).forEach((r) => (gains[r.player_id] = r.gained));
+  const hostIsAuthor = seat.canPlay && round?.author_id === seat.playerId;
+  const hostVotes = seat.canPlay && !!seat.playerId && !hostIsAuthor;
 
   return (
     <Shell title="Two Truths & a Lie · host" icon="🤥">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="twotruths" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Two Truths &amp; a Lie → Join, with the code.
           </p>
@@ -177,7 +187,21 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
         </div>
       )}
 
-      {room.phase === "write" && round && (
+      {room.phase === "write" && round && hostIsAuthor && seat.playerId && (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-fog text-center">
+            Round {room.round_idx + 1}/{rounds.length}
+          </p>
+          <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+            <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
+          </div>
+          <BigBtn onClick={skipAuthor} disabled={busy} color="ghost">
+            Skip my turn
+          </BigBtn>
+        </div>
+      )}
+
+      {room.phase === "write" && round && !hostIsAuthor && (
         <div className="flex flex-col gap-4 items-center py-8">
           <p className="text-sm text-fog">
             Round {room.round_idx + 1}/{rounds.length}
@@ -201,14 +225,22 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
             Round {room.round_idx + 1}/{rounds.length} · about {round.author_name} ·{" "}
             {votes.length}/{voterCount} votes in
           </p>
-          <h1 className="text-xl font-extrabold text-center">Which one is the lie?</h1>
-          <div className="flex flex-col gap-2">
-            {(phaseData.statements ?? []).map((s, i) => (
-              <div key={i} className="rounded-xl bg-card border border-line p-4 font-semibold">
-                {i + 1}. {s}
+          {hostVotes && seat.playerId ? (
+            <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+              <PlayerPanel room={room} subs={subs} playerId={seat.playerId} conceal />
+            </div>
+          ) : (
+            <>
+              <h1 className="text-xl font-extrabold text-center">Which one is the lie?</h1>
+              <div className="flex flex-col gap-2">
+                {(phaseData.statements ?? []).map((s, i) => (
+                  <div key={i} className="rounded-xl bg-card border border-line p-4 font-semibold">
+                    {i + 1}. {s}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
           <BigBtn onClick={reveal} disabled={busy || votes.length === 0} color="ghost">
             Reveal now ({votes.length} in)
           </BigBtn>
@@ -244,7 +276,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
               );
             })}
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= rounds.length ? "Finish game" : "Next round"}
           </BigBtn>
@@ -255,7 +287,7 @@ export default function TTHost({ params }: { params: Promise<{ code: string }> }
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <a href="/twotruths/host" className="underline text-fog">
             Play again with a new room

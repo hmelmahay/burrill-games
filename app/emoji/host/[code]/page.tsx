@@ -11,8 +11,11 @@ import {
   Countdown,
   Leaderboard,
   PlayerChips,
+  HostSeatCard,
 } from "@/app/components/ui";
 import { guessMatches } from "@/lib/matching";
+import { useHostSeat } from "@/lib/useHostSeat";
+import { PlayerPanel } from "@/app/emoji/PlayerPanel";
 import {
   BASE_POINTS,
   SPEED_BONUS,
@@ -23,8 +26,9 @@ import {
 
 export default function EmojiHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("emoji", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("emoji", code);
   const { tvRef } = useSpectator();
+  const seat = useHostSeat("emoji", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -135,7 +139,8 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
     <Shell title="Emoji Cinema · host" icon="🎬">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="emoji" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Emoji Cinema → Join, with the code.
           </p>
@@ -163,9 +168,15 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
           <div className="rounded-2xl bg-card border-2 border-violet p-8 text-center">
             <div className="text-6xl leading-tight tracking-wider">{round.emoji}</div>
           </div>
-          <p className="text-fog text-center text-sm">
-            It&apos;s a {round.kind.toLowerCase()} — type your guess on your phone!
-          </p>
+          {seat.canPlay && seat.playerId ? (
+            <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+              <PlayerPanel room={room} subs={subs} playerId={seat.playerId} left={left} conceal />
+            </div>
+          ) : (
+            <p className="text-fog text-center text-sm">
+              It&apos;s a {round.kind.toLowerCase()} — type your guess on your phone!
+            </p>
+          )}
           <BigBtn onClick={reveal} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
             {left === 0 ? "Time! Reveal answer" : "Reveal early"}
           </BigBtn>
@@ -191,7 +202,7 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
               </div>
             ))}
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next puzzle"}
           </BigBtn>
@@ -202,7 +213,7 @@ export default function EmojiHost({ params }: { params: Promise<{ code: string }
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <a href="/emoji/host" className="underline text-fog">
             Play again with a new room

@@ -13,6 +13,7 @@ import {
   Leaderboard,
   MiniTimer,
   PlayerChips,
+  HostSeatCard,
 } from "@/app/components/ui";
 import {
   CHOICE_COLORS,
@@ -23,15 +24,15 @@ import {
   QuizPhaseData,
   QuizResult,
 } from "@/app/quiz/constants";
-import { playerKey } from "@/lib/rooms";
+import { useHostSeat } from "@/lib/useHostSeat";
 import { addBot, removeBot, humansOf, botsOf, botSkill, botQuizPick, botBlindChoice, botQuizDelayMs } from "@/lib/bots";
 import { useBotAnswer } from "@/lib/useBotAnswer";
 import { useBotSubmissions } from "@/lib/useBots";
 
 export default function QuizHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("quiz", code);
-  const { tv, tvRef } = useSpectator();
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("quiz", code);
+  const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -90,15 +91,11 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     setBusy(false);
   }
 
-  // The creator can play too (seated from the setup page, like Vibe Check):
-  // when this device holds a player for the room, the choice tiles become
-  // tappable answer buttons. Never on a TV copy.
-  const [playerId, setPlayerId] = useState<string | null>(null);
-  useEffect(() => {
-    setPlayerId(localStorage.getItem(playerKey(code)));
-  }, [code]);
-  const me = players.find((p) => p.id === playerId);
-  const canPlay = !!me && !tv;
+  // The creator can play too (seated from the setup page or the lobby): when
+  // this device holds a player for the room, the choice tiles become tappable
+  // answer buttons. Never on a TV copy.
+  const seat = useHostSeat("quiz", code, players, refresh, playersLoaded);
+  const { playerId, me, canPlay } = seat;
   const mySub = subs.find(
     (s) => s.player_id === playerId && s.round_idx === room?.round_idx,
   );
@@ -304,7 +301,8 @@ export default function QuizHost({ params }: { params: Promise<{ code: string }>
     <Shell title="Quiz Rush · host" icon="⚡">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="quiz" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Quiz Rush → Join, with the code.
           </p>

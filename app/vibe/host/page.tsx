@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, BigBtn } from "@/app/components/ui";
-import { createRoom, hostKey, joinRoom, playerKey } from "@/lib/rooms";
+import { createRoom, hostKey, seatCreator } from "@/lib/rooms";
 
 export default function VibeHostSetup() {
   const router = useRouter();
@@ -22,19 +22,12 @@ export default function VibeHostSetup() {
       setBusy(false);
       return;
     }
-    localStorage.setItem(hostKey(room.code), "true");
+    try {
+      localStorage.setItem(hostKey(room.code), "true");
+    } catch {}
     // Creating a room shouldn't lock you out of your own game: if you gave a
     // name, you're seated as a player and the host screen shows your controls.
-    const n = name.trim();
-    if (n) {
-      const { player, error: jErr } = await joinRoom("vibe", room.code, n);
-      if (jErr || !player) {
-        setErr(jErr ?? "Room made, but couldn't seat you as a player.");
-        setBusy(false);
-        return;
-      }
-      localStorage.setItem(playerKey(room.code), player.id);
-    }
+    await seatCreator("vibe", room.code, name);
     router.push(`/vibe/host/${room.code}`);
   }
 

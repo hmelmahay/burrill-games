@@ -5,7 +5,9 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
-import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
+import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { useHostSeat } from "@/lib/useHostSeat";
+import { PlayerPanel } from "@/app/hottake/PlayerPanel";
 import {
   CROWD_POINTS,
   FAME_POINTS,
@@ -17,8 +19,9 @@ type HotTakeRound = { p: string };
 
 export default function HotTakeHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("hottake", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("hottake", code);
   const { tvRef } = useSpectator();
+  const seat = useHostSeat("hottake", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   const revealingRef = useRef<number | null>(null);
 
@@ -120,7 +123,8 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
     <Shell title="Hot Take · host" icon="🔥">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="hottake" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Hot Take → Join, with the code.
           </p>
@@ -147,7 +151,13 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
             </div>
             <h1 className="text-2xl font-extrabold">{round.p}</h1>
           </div>
-          <p className="text-fog text-center text-sm">Vote on your phones. Choose wisely.</p>
+          {seat.canPlay && seat.playerId ? (
+            <div className="rounded-2xl border-2 border-violet bg-card/60 p-4">
+              <PlayerPanel room={room} players={players} subs={subs} playerId={seat.playerId} conceal />
+            </div>
+          ) : (
+            <p className="text-fog text-center text-sm">Vote on your phones. Choose wisely.</p>
+          )}
           <BigBtn onClick={reveal} disabled={busy || answered.length === 0} color="ghost">
             Reveal now ({answered.length} in)
           </BigBtn>
@@ -176,7 +186,7 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
               </div>
             ))}
           </div>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <BigBtn onClick={next} disabled={busy}>
             {room.round_idx + 1 >= totalRounds ? "Finish game" : "Next round"}
           </BigBtn>
@@ -187,7 +197,7 @@ export default function HotTakeHost({ params }: { params: Promise<{ code: string
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <Link href="/hottake/host" className="underline text-fog">
             Play again with a new room

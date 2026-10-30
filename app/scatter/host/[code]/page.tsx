@@ -10,8 +10,11 @@ import {
   Countdown,
   Leaderboard,
   PlayerChips,
+  HostSeatCard,
 } from "@/app/components/ui";
 import { judgeCellStates, JudgeOverride } from "@/lib/content/scatter";
+import { useHostSeat } from "@/lib/useHostSeat";
+import { PlayerPanel } from "@/app/scatter/PlayerPanel";
 import {
   POINTS_PER_ANSWER,
   ScatterPhaseData,
@@ -23,7 +26,8 @@ type SubRow = { player_id: string; payload: { answers?: string[] } };
 
 export default function ScatterHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error, refresh } = useRoom("scatter", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("scatter", code);
+  const seat = useHostSeat("scatter", code, players, refresh, playersLoaded);
   const [busy, setBusy] = useState(false);
   // Host overrules, keyed `${playerId}:${catIdx}`: "reject" tosses a scoring
   // answer, "accept" rescues a duplicate or wrong-letter one.
@@ -57,10 +61,15 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
     setBusy(false);
   }
 
+  // The host's own sheet goes in before the round flips to judging, so the
+  // judging grid never shows a seated host as blank.
+  const handInRef = useRef<(() => Promise<boolean>) | null>(null);
+
   async function startJudging() {
     if (!room) return;
     setBusy(true);
     setOverrides(new Map());
+    if (seat.canPlay && (await handInRef.current?.()) === false) await handInRef.current?.();
     await refresh(); // pick up any last-second submissions
     await supabase.from("arcade_rooms").update({ phase: "judge" }).eq("id", room.id);
     setBusy(false);
@@ -167,7 +176,8 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
     <Shell title="Scatter Sprint · host" icon="📝">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="scatter" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Scatter Sprint → Join, with the code.
           </p>
@@ -191,15 +201,39 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
             <div className="text-xs text-fog uppercase tracking-[0.3em]">The letter is</div>
             <div className="text-7xl font-extrabold text-glow">{round.letter}</div>
           </div>
-          <ul className="rounded-xl bg-card border border-line divide-y divide-line">
-            {round.categories.map((c) => (
-              <li key={c} className="px-4 py-3 font-semibold">{c}</li>
-            ))}
-          </ul>
-          <BigBtn onClick={startJudging} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
-            {left === 0 ? "Pencils down — judge answers" : "End round early"}
-          </BigBtn>
+          {!seat.canPlay && (
+            <ul className="rounded-xl bg-card border border-line divide-y divide-line">
+              {round.categories.map((c) => (
+                <li key={c} className="px-4 py-3 font-semibold">{c}</li>
+              ))}
+            </ul>
+          )}
         </div>
+      )}
+
+      {/* The host's own sheet. It stays mounted into judging (hidden there) so
+          answers not yet handed in still land when the round ends early. */}
+      {seat.canPlay && seat.playerId && (room.phase === "write" || room.phase === "judge") && (
+        <div
+          className={
+            room.phase === "write" ? "rounded-2xl border-2 border-violet bg-card/60 p-4" : "hidden"
+          }
+        >
+          <PlayerPanel
+            room={room}
+            subs={subs}
+            playerId={seat.playerId}
+            left={left}
+            handInRef={handInRef}
+            conceal
+          />
+        </div>
+      )}
+
+      {room.phase === "write" && round && (
+        <BigBtn onClick={startJudging} disabled={busy} color={left === 0 ? "glow" : "ghost"}>
+          {left === 0 ? "Pencils down — judge answers" : "End round early"}
+        </BigBtn>
       )}
 
       {room.phase === "judge" && round && (
@@ -276,7 +310,7 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
           <p className="text-sm text-fog text-center">
             Round {room.round_idx + 1}/{totalRounds} scored · letter {round.letter}
           </p>
-          <Leaderboard players={players} gains={gains} />
+          <Leaderboard players={players} gains={gains} highlightId={seat.playerId} />
           <details className="rounded-xl bg-card border border-line p-3">
             <summary className="font-bold cursor-pointer">Answer breakdown</summary>
             <div className="mt-2 flex flex-col gap-3">
@@ -313,7 +347,7 @@ export default function ScatterHost({ params }: { params: Promise<{ code: string
         <div className="flex flex-col gap-5 items-center">
           <h1 className="text-4xl font-extrabold">🏆 Final standings</h1>
           <div className="w-full">
-            <Leaderboard players={players} />
+            <Leaderboard players={players} highlightId={seat.playerId} />
           </div>
           <a href="/scatter/host" className="underline text-fog">
             Play again with a new room

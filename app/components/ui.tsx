@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Player } from "@/lib/supabase";
 import { useSpectator } from "@/lib/useSpectator";
+import type { HostSeat } from "@/lib/useHostSeat";
 
 export function Shell({
   title,
@@ -39,8 +40,7 @@ export function Shell({
   );
 }
 
-export function CodeBadge({ code, game }: { code: string; game?: string }) {
-  const { tv } = useSpectator();
+export function CodeBadge({ code }: { code: string }) {
   return (
     <div className="rounded-2xl border-2 border-glow bg-card p-4 text-center">
       <div className="text-xs text-fog uppercase tracking-[0.3em]">Join code</div>
@@ -48,24 +48,126 @@ export function CodeBadge({ code, game }: { code: string; game?: string }) {
         {code}
       </div>
       <div className="text-fog text-xs mt-2">
-        Playing too? Join with this code from your phone — this screen is just the
-        room&apos;s scoreboard, and anyone can run it.
+        Everyone else joins from their phone with this code.
       </div>
-      {/* Hosting on the same device is normal, so give it a real button rather
-          than expecting someone to type the URL by hand. Never on the TV. */}
-      {game && !tv && (
-        <a
-          href={`/${game}/play?code=${code}`}
-          target="_blank"
-          rel="noopener"
-          className="mt-3 inline-block rounded-xl border-2 border-violet px-5 py-2 font-bold hover:bg-violet/10"
-        >
-          🎮 Join this game
-        </a>
-      )}
       <TvHint />
     </div>
   );
+}
+
+// Lobby card that seats whoever is running the host screen, so they play on
+// this device instead of joining again from a second phone or tab.
+export function HostSeatCard({ seat }: { seat: HostSeat }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (seat.tv) return null;
+
+  async function run(action: () => Promise<string | null>) {
+    setBusy(true);
+    setErr(await action());
+    setBusy(false);
+  }
+
+  if (seat.checking)
+    return (
+      <div className="rounded-2xl border-2 border-violet bg-card/60 p-4 text-fog text-sm">
+        🎮 Checking your seat…
+      </div>
+    );
+
+  if (seat.me)
+    return (
+      <div className="rounded-2xl border-2 border-violet bg-card/60 p-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="font-bold">🎮 You&apos;re playing as {seat.me.name}</div>
+          <div className="text-fog text-xs">
+            Your turns show up right here on this screen.
+          </div>
+          {err && <p className="text-lose text-xs mt-1">{err}</p>}
+        </div>
+        <button
+          onClick={() => run(seat.leave)}
+          disabled={busy}
+          className="shrink-0 rounded-lg border border-line px-3 py-2 text-xs text-fog hover:border-lose disabled:opacity-40"
+        >
+          Just host
+        </button>
+      </div>
+    );
+
+  return (
+    <div className="rounded-2xl border-2 border-violet bg-card/60 p-4 flex flex-col gap-2">
+      <div className="font-bold">🎮 Playing too?</div>
+      <div className="flex gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Your name"
+          maxLength={20}
+          autoComplete="off"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-card px-3 py-2"
+          onKeyDown={(e) => e.key === "Enter" && !busy && run(() => seat.sit(name))}
+        />
+        <button
+          onClick={() => run(() => seat.sit(name))}
+          disabled={busy || !name.trim()}
+          className="shrink-0 rounded-lg bg-violet text-white px-4 py-2 font-bold disabled:opacity-40"
+        >
+          {busy ? "Joining…" : "Join here"}
+        </button>
+      </div>
+      <div className="text-fog text-xs">
+        Play on this screen. No second phone or tab needed. Skip it to keep this
+        screen as just the scoreboard.
+      </div>
+      {err && <p className="text-lose text-sm">{err}</p>}
+    </div>
+  );
+}
+
+// Keeps something only this seat should see behind a tap, for a host screen
+// the room can see too (Chameleon's role peek, generalized). Give it a `key`
+// that changes each round so it closes again on its own.
+export function PeekGuard({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <div className="flex flex-col items-center gap-2 py-2">
+        <p className="text-fog text-sm">Hidden, since others can see this screen.</p>
+        <button
+          onClick={() => setOpen(true)}
+          className="rounded-xl border-2 border-violet px-6 py-3 font-bold hover:bg-violet/10"
+        >
+          🫣 {label}
+        </button>
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-2">
+      {children}
+      <button onClick={() => setOpen(false)} className="text-fog text-sm underline">
+        Hide it again
+      </button>
+    </div>
+  );
+}
+
+// For a seated host typing on a screen the room can see: inputs show dots
+// unless the host flips the toggle to check what they typed.
+export function useMaskedTyping(conceal?: boolean) {
+  const [show, setShow] = useState(false);
+  const inputClass = conceal && !show ? "type-masked" : "";
+  const toggle = conceal ? (
+    <button
+      type="button"
+      onClick={() => setShow((v) => !v)}
+      className="self-center text-fog text-xs underline"
+    >
+      {show ? "Hide what I'm typing" : "Show what I'm typing"}
+    </button>
+  ) : null;
+  return { inputClass, toggle };
 }
 
 // Shows the big-screen entry address (hidden on the TV itself). The /tv page

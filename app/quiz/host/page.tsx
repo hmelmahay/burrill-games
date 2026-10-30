@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, BigBtn } from "@/app/components/ui";
-import { createRoom, shuffle, hostKey, joinRoom, playerKey } from "@/lib/rooms";
+import { createRoom, shuffle, hostKey, seatCreator } from "@/lib/rooms";
 import { QUIZ_BANK } from "@/lib/content/quiz";
 
 const MAX_QUESTIONS = 20;
@@ -35,19 +35,12 @@ export default function QuizHostSetup() {
       setBusy(false);
       return;
     }
-    localStorage.setItem(hostKey(room.code), "true");
+    try {
+      localStorage.setItem(hostKey(room.code), "true");
+    } catch {}
     // Creating a room shouldn't lock you out of your own game: if you gave a
     // name, you're seated as a player and the host screen shows your controls.
-    const n = name.trim();
-    if (n) {
-      const { player, error: jErr } = await joinRoom("quiz", room.code, n);
-      if (jErr || !player) {
-        setErr(jErr ?? "Room made, but couldn't seat you as a player.");
-        setBusy(false);
-        return;
-      }
-      localStorage.setItem(playerKey(room.code), player.id);
-    }
+    await seatCreator("quiz", room.code, name);
     router.push(`/quiz/host/${room.code}`);
   }
 

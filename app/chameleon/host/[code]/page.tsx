@@ -5,8 +5,9 @@ import Link from "next/link";
 import { supabase, Player } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { useSpectator } from "@/lib/useSpectator";
-import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips } from "@/app/components/ui";
-import { shuffle, playerKey } from "@/lib/rooms";
+import { Shell, CodeBadge, BigBtn, Leaderboard, PlayerChips, HostSeatCard } from "@/app/components/ui";
+import { shuffle } from "@/lib/rooms";
+import { useHostSeat } from "@/lib/useHostSeat";
 import { WordGrid } from "@/app/chameleon/WordGrid";
 import { PlayerPanel } from "@/app/chameleon/PlayerPanel";
 import { CHAMELEON_TOPICS } from "@/lib/content/chameleon";
@@ -21,17 +22,15 @@ import {
 
 export default function ChameleonHost({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { room, players, subs, error } = useRoom("chameleon", code);
+  const { room, players, subs, error, refresh, playersLoaded } = useRoom("chameleon", code);
   const { tvRef } = useSpectator();
   const [busy, setBusy] = useState(false);
   const advancingRef = useRef<string | null>(null);
 
   // Set when whoever opened this screen also joined as a player.
-  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
-  useEffect(() => {
-    setMyPlayerId(localStorage.getItem(playerKey(code)));
-  }, [code]);
-  const iAmPlaying = !!myPlayerId && players.some((p) => p.id === myPlayerId);
+  const seat = useHostSeat("chameleon", code, players, refresh, playersLoaded);
+  const myPlayerId = seat.playerId;
+  const iAmPlaying = seat.canPlay;
 
   const settings = (room?.settings ?? {}) as { roundCount?: number };
   const rounds = (room?.rounds ?? []) as ChamRound[];
@@ -226,7 +225,8 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
     <Shell title="Chameleon · host" icon="🦎">
       {room.phase === "lobby" && (
         <div className="flex flex-col gap-5">
-          <CodeBadge code={room.code} game="chameleon" />
+          <CodeBadge code={room.code} />
+          <HostSeatCard seat={seat} />
           <p className="text-center text-fog text-sm">
             Players join at this site → Chameleon → Join, with the code.
           </p>
