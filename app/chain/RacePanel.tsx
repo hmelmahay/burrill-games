@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase, Room, Sub, ChainRound } from "@/lib/supabase";
+import { Stamp } from "@/app/components/fx";
+import { Confetti } from "@/app/components/Confetti";
+import { playShake } from "@/lib/motion";
 import { ChainBoard } from "./ChainBoard";
 import {
   chainGuessOk,
@@ -120,6 +123,8 @@ export function RacePanel({
     } else {
       setGuess("");
       setLockUntil(Date.now() + MISS_LOCK_MS);
+      // Shake the input itself, never the sticky dock around it.
+      playShake(inputRef.current);
     }
   }
 
@@ -151,9 +156,11 @@ export function RacePanel({
     <div className="flex flex-col gap-3">
       <ChainBoard words={round.words} solved={prog.solved} reveal={prog.reveal} />
       {prog.done ? (
-        <p className="text-center text-win font-bold text-lg pop-in">
-          🏁 Chain complete — {prog.score} pts banked!
-        </p>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <Stamp tone="win">🏁 Chain complete</Stamp>
+          <p className="font-bold text-lg text-win">{prog.score} pts banked!</p>
+          <Confetti pieces={30} />
+        </div>
       ) : left === 0 ? (
         <p className="text-center text-fog">⏰ Time! You solved {prog.solved}/{HIDDEN_WORDS}.</p>
       ) : (
@@ -179,9 +186,9 @@ export function RacePanel({
             <button
               onClick={submit}
               disabled={locked || !guess.trim()}
-              className="rounded-xl bg-glow text-[#1a1000] px-5 font-bold disabled:opacity-40"
+              className="coin-btn coin-glow shrink-0 disabled:opacity-40"
             >
-              Go
+              <span className="coin-face px-5">Go</span>
             </button>
           </div>
           <div className="flex items-center justify-between text-sm">

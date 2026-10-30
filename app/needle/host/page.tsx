@@ -7,6 +7,7 @@ import { supabase, Pool, Song, Pattern, Difficulty } from "@/lib/needle/types";
 import { generateCode, shuffle } from "@/lib/needle/parsers";
 import { generateCard } from "@/lib/needle/bingo";
 import { DifficultyInfo } from "@/app/needle/DifficultyInfo";
+import { Marquee } from "@/app/components/brand";
 
 const ALL_POOL_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -159,9 +160,9 @@ export default function HostHome() {
 
   return (
     <main className="dark flex flex-1 flex-col gap-6 p-6 max-w-2xl mx-auto w-full">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Pools</h1>
-        <Link href="/" className="text-sm underline">
+      <div className="flex items-center justify-between gap-2">
+        <Marquee icon="🎵" title="Needle Drop" sub="Pools" size="lg" className="min-w-0" />
+        <Link href="/" className="shrink-0 text-sm underline">
           home
         </Link>
       </div>

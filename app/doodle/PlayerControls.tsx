@@ -42,6 +42,8 @@ export function WordPicker({
   }
 
   if (!round) return null;
+  // Dealt in 80ms apart.  The rise is on the face, so the button itself (the
+  // hit box) never moves under a finger.
   const options = (
     <div className="flex flex-col gap-3">
       {round.options.map((w, i) => (
@@ -49,12 +51,15 @@ export function WordPicker({
           key={w}
           onClick={() => pickWord(w)}
           disabled={picking}
-          className={`rounded-xl p-5 font-bold text-lg border-2 active:scale-95 transition ${
-            i === 2 ? "border-violet bg-violet/15" : "border-line bg-card"
-          }`}
+          className={`coin-btn ${i === 2 ? "coin-violet" : "coin-ghost"} disabled:opacity-40`}
         >
-          {w}
-          {i === 2 && <span className="block text-xs text-fog font-normal">trickier</span>}
+          <span
+            className={`coin-face fx-rise flex-col p-5 text-lg ${i === 2 ? "border-2 border-violet" : "text-white"}`}
+            style={{ animationDelay: `${i * 80}ms` }}
+          >
+            {w}
+            {i === 2 && <span className="block text-xs font-normal">trickier</span>}
+          </span>
         </button>
       ))}
     </div>
@@ -198,9 +203,9 @@ export function GuessBox({
         <button
           onClick={sendGuess}
           disabled={!guess.trim()}
-          className="rounded-xl bg-glow text-[#1a1000] px-5 font-bold disabled:opacity-40"
+          className="coin-btn coin-glow shrink-0 disabled:opacity-40"
         >
-          Guess
+          <span className="coin-face px-5">Guess</span>
         </button>
       </div>
       {myGuesses.length > 0 && !conceal && (

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Sub } from "@/lib/supabase";
-import { PeekGuard } from "@/app/components/ui";
+import { BigBtn, PeekGuard } from "@/app/components/ui";
+import { Dots } from "@/app/components/fx";
 import { AUTHOR_POINTS_PER_FOOL, TTRound, TTPhaseData } from "@/app/twotruths/constants";
 
 // Everything a player does in a round: write two truths and a lie on your
@@ -86,7 +87,7 @@ export function PlayerPanel({
             />
             <button
               onClick={() => setLie(i)}
-              className={`rounded-lg px-3 py-3 text-sm font-bold border-2 ${
+              className={`press rounded-lg px-3 py-3 text-sm font-bold border-2 ${
                 lie === i ? "border-lose bg-lose/30 text-white" : "border-line text-fog"
               }`}
             >
@@ -94,13 +95,9 @@ export function PlayerPanel({
             </button>
           </div>
         ))}
-        <button
-          onClick={handIn}
-          disabled={statements.some((s) => !s.trim()) || lie == null}
-          className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg disabled:opacity-40"
-        >
+        <BigBtn onClick={handIn} disabled={statements.some((s) => !s.trim()) || lie == null}>
           {lie == null ? "Mark which one is the lie" : "Send it"}
-        </button>
+        </BigBtn>
       </div>
     );
     return conceal ? (
@@ -124,7 +121,10 @@ export function PlayerPanel({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2">
         <p className="text-3xl">✍️</p>
-        <p className="font-bold text-xl">{round.author_name} is writing…</p>
+        <p className="font-bold text-xl">
+          {round.author_name} is writing
+          <Dots />
+        </p>
         <p className="text-fog text-sm">Get ready to spot the lie.</p>
       </div>
     );
@@ -151,12 +151,12 @@ export function PlayerPanel({
             key={i}
             onClick={() => vote(i)}
             disabled={locked}
-            className={`rounded-xl p-4 text-left font-semibold border-2 transition ${
+            className={`rounded-xl p-4 text-left font-semibold border-2 ${
               myVote === i && !conceal
                 ? "border-glow bg-glow/20"
                 : locked
                   ? "border-line opacity-50"
-                  : "border-line bg-card active:scale-95"
+                  : "border-line bg-card press"
             }`}
           >
             {i + 1}. {s}

@@ -70,7 +70,7 @@ export function PlayerPanel({
         <h2 className="font-bold text-center text-lg">1 · Your pick?</h2>
         <button
           onClick={() => setVote("a")}
-          className={`rounded-xl p-4 font-bold text-lg bg-glow text-[#1a1000] ${
+          className={`press rounded-xl p-4 font-bold text-lg bg-glow text-[#1a1000] ${
             vote === "a" ? "ring-4 ring-white" : vote ? "opacity-40" : ""
           }`}
         >
@@ -78,7 +78,7 @@ export function PlayerPanel({
         </button>
         <button
           onClick={() => setVote("b")}
-          className={`rounded-xl p-4 font-bold text-lg bg-violet text-white ${
+          className={`press rounded-xl p-4 font-bold text-lg bg-violet text-white ${
             vote === "b" ? "ring-4 ring-white" : vote ? "opacity-40" : ""
           }`}
         >
@@ -96,7 +96,7 @@ export function PlayerPanel({
                 setPred("a");
                 submit(vote, "a");
               }}
-              className="rounded-xl p-4 font-bold bg-glow/80 text-[#1a1000]"
+              className="press rounded-xl p-4 font-bold bg-glow/80 text-[#1a1000]"
             >
               {round.a}
             </button>
@@ -105,7 +105,7 @@ export function PlayerPanel({
                 setPred("b");
                 submit(vote, "b");
               }}
-              className="rounded-xl p-4 font-bold bg-violet/80 text-white"
+              className="press rounded-xl p-4 font-bold bg-violet/80 text-white"
             >
               {round.b}
             </button>

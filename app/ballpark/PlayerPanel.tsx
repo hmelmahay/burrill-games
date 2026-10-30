@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Sub } from "@/lib/supabase";
-import { useMaskedTyping } from "@/app/components/ui";
+import { BigBtn, useMaskedTyping } from "@/app/components/ui";
+import { Stamp } from "@/app/components/fx";
 
 // A player's number guess for the current question. Shared by the phone view
 // and the host screen, so whoever runs the room can play on the same device.
@@ -55,24 +56,25 @@ export function PlayerPanel({
           className={`rounded-xl border-2 border-glow bg-card px-4 py-4 text-2xl text-center font-mono ${inputClass}`}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
-        <button
-          onClick={submit}
-          disabled={!guess.trim()}
-          className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg disabled:opacity-40"
-        >
+        <BigBtn onClick={submit} disabled={!guess.trim()}>
           Lock it in
-        </button>
+        </BigBtn>
         {toggle}
       </div>
     );
 
   return (
     <div className="flex flex-col items-center gap-2 py-6">
-      <p className="font-bold text-2xl font-mono">
-        {conceal
-          ? "🔒 Locked in"
-          : `🔒 ${mySub ? Number(mySub.payload.guess).toLocaleString() : guess}`}
-      </p>
+      {conceal ? (
+        <p className="font-bold text-2xl font-mono">🔒 Locked in</p>
+      ) : (
+        <>
+          <Stamp tone="violet">Locked in</Stamp>
+          <p className="font-bold text-2xl font-mono tabular-nums">
+            {mySub ? Number(mySub.payload.guess).toLocaleString() : guess}
+          </p>
+        </>
+      )}
       <p className="text-fog">Waiting for everyone…</p>
     </div>
   );

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Player, Sub } from "@/lib/supabase";
-import { PeekGuard } from "@/app/components/ui";
+import { BigBtn, PeekGuard } from "@/app/components/ui";
+import { Stamp } from "@/app/components/fx";
 import { VibeRound, VibePhaseData } from "@/app/vibe/constants";
 
 // Everything a player *does* in Vibe Check: write a clue when you're the
@@ -76,7 +77,7 @@ export function PlayerPanel({
           <span>← {round.left}</span>
           <span>{round.right} →</span>
         </div>
-        <div className="relative h-6 rounded-full bg-gradient-to-r from-violet to-glow">
+        <div className="relative h-6 rounded-full" style={{ background: "linear-gradient(90deg,#7c5cff,#ff9f1c)" }}>
           <div
             className="absolute top-[-6px] bottom-[-6px] w-2 bg-win rounded"
             style={{ left: `calc(${round.target}% - 4px)` }}
@@ -95,13 +96,9 @@ export function PlayerPanel({
           className="rounded-xl border-2 border-glow bg-card px-4 py-4 text-lg"
           onKeyDown={(e) => e.key === "Enter" && sendClue()}
         />
-        <button
-          onClick={sendClue}
-          disabled={!clue.trim()}
-          className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg disabled:opacity-40"
-        >
+        <BigBtn onClick={sendClue} disabled={!clue.trim()}>
           Send clue
-        </button>
+        </BigBtn>
       </div>
     );
     return conceal ? (
@@ -153,23 +150,23 @@ export function PlayerPanel({
               max={100}
               value={dial}
               onChange={(e) => setDial(Number(e.target.value))}
-              className="w-full"
+              className="fx-range"
             />
             <div className="text-center font-mono text-3xl font-bold">{dial}</div>
-            <button
-              onClick={sendGuess}
-              className="rounded-xl bg-glow text-[#1a1000] py-4 font-bold text-lg"
-            >
-              Lock in {dial}
-            </button>
+            <BigBtn onClick={sendGuess}>Lock in {dial}</BigBtn>
           </>
         ) : (
-          <div className="flex flex-col items-center gap-1 py-4">
-            <p className="font-bold text-2xl font-mono">
-              {conceal
-                ? "🔒 Locked in"
-                : `🔒 ${(mySub?.payload as { guess?: number } | undefined)?.guess ?? dial}`}
-            </p>
+          <div className="flex flex-col items-center gap-2 py-4">
+            {conceal ? (
+              <p className="font-bold text-2xl font-mono">🔒 Locked in</p>
+            ) : (
+              <>
+                <Stamp tone="violet">Locked in</Stamp>
+                <p className="font-bold text-2xl font-mono tabular-nums">
+                  {(mySub?.payload as { guess?: number } | undefined)?.guess ?? dial}
+                </p>
+              </>
+            )}
             <p className="text-fog">Waiting for everyone…</p>
           </div>
         )}

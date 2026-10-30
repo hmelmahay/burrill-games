@@ -131,9 +131,9 @@ export function DuelPanel({
         <button
           onClick={() => submit(false)}
           disabled={busy || !guess.trim()}
-          className="rounded-xl bg-glow text-[#1a1000] px-5 font-bold disabled:opacity-40"
+          className="coin-btn coin-glow shrink-0 disabled:opacity-40"
         >
-          Go
+          <span className="coin-face px-5">Go</span>
         </button>
       </div>
       <button
