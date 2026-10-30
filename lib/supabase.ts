@@ -18,7 +18,8 @@ export type GameKind =
   | "doodle"
   | "vibe"
   | "chameleon"
-  | "chain";
+  | "chain"
+  | "letterrip";
 
 export type Room = {
   id: string;
@@ -59,6 +60,7 @@ export type BallparkRound = { q: string; answer: number; unit: string };
 export type MajorityRound = { a: string; b: string };
 export type ScatterRound = { letter: string; categories: string[] };
 export type ChainRound = { words: string[] };
+export type LetterRound = { cat: string; answers: { a: string; alts?: string[] }[] };
 
 // Per-round results the host writes into phase_data for reveal screens
 export type RoundResult = { player_id: string; name: string; gained: number; detail?: string };

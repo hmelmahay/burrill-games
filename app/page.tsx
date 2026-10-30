@@ -79,6 +79,12 @@ const GAMES: {
     desc: "FIRE → WORK → SHOP: every word pairs with the next. Race the room down a 10-word chain, or duel head-to-head on separate chains — 20s a turn, first to the bottom wins.",
   },
   {
+    slug: "letterrip",
+    icon: "🔤",
+    name: "Letter Rip",
+    desc: "Tom Cruise movies: T·· G··? TOP GUN! Six hidden answers per category — first letter and blanks are your only clues. Race the room, battle in teams with steals, or clear boards together.",
+  },
+  {
     slug: "chameleon",
     icon: "🦎",
     name: "Chameleon",
