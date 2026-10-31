@@ -1,7 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { GAME_META, type GameSlug } from "@/lib/games";
 import { Marquee } from "@/app/components/brand";
-import { MikeAvatar, SteveAvatar } from "./_home/Avatars";
 import { ServerStatus } from "./_home/ServerStatus";
 
 // Names and icons come from the registry (lib/games.ts).  This list keeps the
@@ -123,18 +123,18 @@ export default function Home() {
   const rise = (i: number) => ({ animationDelay: `${Math.min(i * 40, 600)}ms` });
   return (
     <main className="flex flex-1 flex-col items-center gap-8 px-4 pb-6 pt-10 sm:px-6 sm:pt-12">
-      <div className="flex max-w-full flex-col items-center text-center">
+      <div className="flex w-full max-w-5xl flex-col items-center text-center">
         <Marquee icon="🕹️" title="Insert imagination to play" burstKey="arcade" className="marquee-wrap mb-4" />
-        <div className="flex max-w-full items-center justify-center">
-          <SteveAvatar />
-          <h1
-            className="title-sign relative z-[1] -mx-[7px] min-w-0 pt-3 font-extrabold tracking-tight text-balance sm:-mx-[13px]"
-            style={{ fontSize: "clamp(1.9rem, 7vw, 3.5rem)", lineHeight: 1.05 }}
-          >
-            The Burr &amp; Spill
-          </h1>
-          <MikeAvatar />
-        </div>
+        <h1 className="sr-only">The Burr &amp; Spill</h1>
+        <Image
+          src="/images/burr-spill-staredown.webp"
+          alt="Steve and Mike share a playful stare-down across arcade controls beneath The Burr and Spill title, in a handmade clay animation style."
+          width={1983}
+          height={793}
+          priority
+          sizes="(max-width: 1056px) calc(100vw - 32px), 1024px"
+          className="h-auto w-full rounded-2xl"
+        />
         <p className="text-fog mt-2">Pick a game. Host it and share the code, or join a friend&apos;s room.</p>
       </div>
       <div className="grid w-full max-w-4xl gap-4 md:grid-cols-2">
