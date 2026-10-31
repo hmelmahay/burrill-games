@@ -162,10 +162,10 @@ export default function Home() {
                 </span>
               )}
               <div className="flex gap-3">
-                <Link href={`/${g.slug}/host`} className="coin-btn coin-glow flex-1">
+                <Link data-usage-game={g.slug} href={`/${g.slug}/host`} className="coin-btn coin-glow flex-1">
                   <span className="coin-face py-3">Host</span>
                 </Link>
-                <Link href={`/${g.slug}/play`} className="coin-btn coin-ghost flex-1">
+                <Link data-usage-game={g.slug} href={`/${g.slug}/play`} className="coin-btn coin-ghost flex-1">
                   <span className="coin-face border-violet py-3 text-white">Join</span>
                 </Link>
               </div>
@@ -191,6 +191,7 @@ export default function Home() {
       </div>
       <footer className="text-fog text-center text-xs">
         The Burr &amp; Spill · house-party games from Steve Burrill &amp; Mike Spille · phones as controllers
+        <div className="mt-3 flex justify-center gap-4"><Link href="/privacy" className="underline">Usage &amp; privacy</Link><Link href="/admin" className="underline">Owner dashboard</Link></div>
       </footer>
     </main>
   );
@@ -218,10 +219,10 @@ function OutsideCard({ game, i }: { game: Outside; i: number }) {
         </span>
       )}
       <div className="flex gap-3">
-        <a href={game.url} className="coin-btn coin-glow flex-1">
+        <a data-usage-game={game.key} href={game.url} className="coin-btn coin-glow flex-1">
           <span className="coin-face py-3">{game.host}</span>
         </a>
-        <a href={game.url} className="coin-btn coin-ghost flex-1">
+        <a data-usage-game={game.key} href={game.url} className="coin-btn coin-ghost flex-1">
           <span className="coin-face border-violet py-3 text-white">Join</span>
         </a>
       </div>
