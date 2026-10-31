@@ -1,4 +1,6 @@
 begin;
+-- Exercise historical inactivity within a temporary reporting baseline.
+update arcade_private.usage_settings set reporting_since=now()-interval '60 days';
 -- All fixtures, including owner identities, are rolled back at the end.
 insert into auth.users(id,email,email_confirmed_at)
 select 'afdf549f-4278-40a3-8e0a-141fed87e0c4','usage-qa@example.invalid',now();
