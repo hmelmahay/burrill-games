@@ -2,6 +2,8 @@ begin;
 -- All fixtures, including owner identities, are rolled back at the end.
 insert into auth.users(id,email,email_confirmed_at)
 select 'afdf549f-4278-40a3-8e0a-141fed87e0c4','usage-qa@example.invalid',now();
+insert into public.arcade_rooms(id,game,code,created_at) values('a6cb8611-3cbd-40b4-8740-cd5a3c7fcf52','quiz','Z9Q7',now()-interval '40 days');
+insert into public.arcade_players(room_id,name,created_at) values('a6cb8611-3cbd-40b4-8740-cd5a3c7fcf52','Usage QA Inactive',now()-interval '40 days');
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"afdf549f-4278-40a3-8e0a-141fed87e0c4","role":"authenticated"}',true);
 do $$ begin
@@ -15,6 +17,8 @@ set local role authenticated;
 do $$ declare report jsonb; begin
  report:=public.arcade_usage_report(30);
  if not report ?& array['overview','games','players','daily'] then raise exception 'Missing dashboard fields'; end if;
+ if not (report->'inactive_players' @> '[{"name":"Usage QA Inactive"}]'::jsonb) then raise exception 'Inactive player missing'; end if;
+ if not (public.arcade_usage_report(90)->'players' @> '[{"name":"Usage QA Inactive"}]'::jsonb) then raise exception 'Date range did not restore active player'; end if;
  if jsonb_typeof(report->'games')<>'array' then raise exception 'Games not array'; end if;
  begin perform public.arcade_usage_report(1000); raise exception 'Invalid range accepted';
  exception when others then if sqlerrm='Invalid range accepted' then raise; end if; end;

@@ -58,7 +58,7 @@ for each row execute function arcade_private.capture_game_times();
 
 -- The privileged reader is outside the exposed schema and explicitly verifies
 -- a confirmed email against auth.users, never user-editable metadata.
-create function arcade_private.usage_report(p_days integer default 30) returns jsonb
+create or replace function arcade_private.usage_report(p_days integer default 30) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare result jsonb; since_at timestamptz; tracking_at timestamptz;
 begin
@@ -89,6 +89,11 @@ begin
    select lower(name) as identity,max(name) as name,count(distinct room_id) as sessions,
    max(created_at) as last_joined,jsonb_agg(distinct game) as games
    from people group by lower(name)
+ ), known_players as (
+   select lower(p.name) as identity,max(p.name) as name,count(distinct p.room_id) as sessions,
+     max(p.created_at) as last_joined,jsonb_agg(distinct r.game) as games
+   from people_all p join rooms_all r on r.id=p.room_id
+   where not p.bot and nullif(p.name,'') is not null group by lower(p.name)
  ), group_sizes as (
    select r.id,count(p.id) filter(where not p.bot) as humans,count(p.id) filter(where p.bot) as bots
    from rooms r left join people_all p on p.room_id=r.id group by r.id
@@ -116,6 +121,7 @@ begin
      'player_names',(select count(*) from per_player),
      'player_seats',(select count(distinct id) from people),
      'repeat_names',(select count(*) from per_player where sessions>1),
+     'inactive_names',(select count(*) from known_players where last_joined<since_at),
      'bot_seats',(select coalesce(sum(bots),0) from group_sizes),
      'avg_group',(select round(avg(humans),1) from group_sizes),
      'avg_visit_minutes',(select round(avg(minutes)::numeric,1) from session_spans where minutes>0 and minutes<720),
@@ -126,6 +132,7 @@ begin
    ),
    'games',coalesce((select jsonb_agg(to_jsonb(g) order by g.rooms desc) from per_game g),'[]'::jsonb),
    'players',coalesce((select jsonb_agg(to_jsonb(p) order by p.last_joined desc) from per_player p),'[]'::jsonb),
+   'inactive_players',coalesce((select jsonb_agg(to_jsonb(p) order by p.last_joined desc) from known_players p where last_joined<since_at),'[]'::jsonb),
    'daily',coalesce((select jsonb_agg(jsonb_build_object('date',d::date,'rooms',
       (select count(*) from rooms r where (r.created_at at time zone 'America/Denver')::date=d::date),
       'visits',(select count(distinct session_id) from visits v where (v.created_at at time zone 'America/Denver')::date=d::date)) order by d)

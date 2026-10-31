@@ -1,8 +1,9 @@
 export type UsageReport = {
  days: number; generated_at: string; tracking_since: string | null;
- overview: {visitors:number;visits:number;page_views:number;returning_browsers:number;active_browsers:number;rooms:number;started:number;finished:number;unfinished:number;player_names:number;player_seats:number;repeat_names:number;bot_seats:number;avg_group:number|null;avg_visit_minutes:number|null;avg_game_minutes:number|null;timed_games:number;errors:number};
+ overview: {visitors:number;visits:number;page_views:number;returning_browsers:number;active_browsers:number;rooms:number;started:number;finished:number;unfinished:number;player_names:number;player_seats:number;repeat_names:number;inactive_names:number;bot_seats:number;avg_group:number|null;avg_visit_minutes:number|null;avg_game_minutes:number|null;timed_games:number;errors:number};
  games: {game:string;rooms:number;started:number;finished:number;unfinished:number;player_seats:number;avg_group:number}[];
  players: {identity:string;name:string;sessions:number;last_joined:string;games:string[]}[];
+ inactive_players: UsageReport['players'];
  daily: {date:string;rooms:number;visits:number}[];
  devices:{device:string;visitors:number}[];
  sources:{source:string;visits:number}[];
