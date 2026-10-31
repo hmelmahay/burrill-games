@@ -309,3 +309,376 @@ body {
 }
 html.fx-rm *, html.fx-rm *::before, html.fx-rm *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 html.fx-rm .fx-confetti { display: none !important; }
+
+/* Owner dashboard: prefixed selectors are compiled with the TV-safe layers. */
+.usage-dashboard {
+  width:100%;
+  max-width:1240px;
+  margin:0 auto;
+  padding:40px 24px 64px;
+  color:#eef0ff}
+
+.usage-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:32px}
+.usage-back {
+  color:#b0b7d7;
+  font-size:13px}
+.usage-eyebrow {
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.16em;
+  color:#b1badc;
+  margin:18px 0 8px}
+.usage-header h1 {
+  font-size:clamp(28px,4vw,44px);
+  font-weight:800;
+  letter-spacing:-.04em;
+  line-height:1.12}
+.usage-header h1 span {
+  display:block;
+  color:#9fa8d1;
+  font-size:16px;
+  letter-spacing:0;
+  margin-top:8px;
+  font-weight:400}
+.usage-badge {
+  border:1px solid #554673;
+  background:#32284f;
+  border-radius:100px;
+  padding:6px 12px;
+  color:#d4bdff;
+  font-size:10px;
+  letter-spacing:.12em;
+  font-weight:800}
+.usage-toolbar,.usage-actions {
+  display:flex;
+  align-items:center;
+  gap:14px}
+.usage-toolbar {
+  justify-content:space-between;
+  flex-wrap:wrap;
+  margin-bottom:20px}
+.usage-toolbar label {
+  font-size:13px;
+  color:#a4aed2;
+  margin-right:12px}
+.usage-dashboard select,.usage-dashboard button,.usage-dashboard input {
+  border:1px solid #343d68;
+  border-radius:10px;
+  background:#171d3b;
+  color:#f5f6ff;
+  padding:10px 14px;
+  font:inherit;
+  font-size:13px}
+.usage-dashboard button {
+  cursor:pointer}
+.usage-dashboard button:hover {
+  border-color:#b59bff}
+.usage-dashboard button:disabled {
+  opacity:.5;
+  cursor:wait}
+.usage-dashboard :focus-visible {
+  outline:2px solid #ffb44b;
+  outline-offset:3px}
+.usage-note {
+  font-size:12px;
+  color:#a1accf;
+  line-height:1.6}
+.usage-statusline {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  color:#a7b2d6;
+  margin-bottom:18px;
+  flex-wrap:wrap}
+.usage-statusline>span:last-child {
+  margin-left:auto}
+.usage-liveDot {
+  width:7px;
+  height:7px;
+  background:#54dfa3;
+  border-radius:100%}
+.usage-metrics {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:16px;
+  margin-bottom:22px}
+.usage-metric {
+  background:linear-gradient(135deg,#1c2547,#131a35);
+  padding:22px;
+  border:1px solid #303b60;
+  border-radius:16px;
+  border-top:3px solid #9c81ff}
+.usage-metric[data-accent=cyan] {
+  border-top-color:#42d9e2}
+.usage-metric[data-accent=orange] {
+  border-top-color:#ffaf43}
+.usage-metric[data-accent=green] {
+  border-top-color:#4fd09b}
+.usage-metric p {
+  font-size:12px;
+  color:#b6c2e4}
+.usage-metric strong {
+  font-size:38px;
+  font-weight:750;
+  display:block;
+  margin:8px 0;
+  letter-spacing:-.05em}
+.usage-metric small {
+  display:block;
+  color:#9eacd1;
+  font-size:11px;
+  line-height:1.5}
+.usage-twoCols {
+  display:grid;
+  grid-template-columns:1.2fr 1fr;
+  gap:22px;
+  margin-bottom:22px}
+.usage-panel {
+  background:#121932;
+  border:1px solid #2c3657;
+  border-radius:16px;
+  padding:24px;
+  margin-bottom:22px;
+  min-width:0}
+.usage-twoCols>.usage-panel {
+  margin:0}
+.usage-panel .usage-eyebrow {
+  margin-top:0}
+.usage-panel h2 {
+  font-weight:700;
+  font-size:20px;
+  letter-spacing:-.02em;
+  margin-bottom:18px}
+.usage-panelHead {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px}
+.usage-panelHead h2 {
+  margin-bottom:14px}
+.usage-facts {
+  margin:12px 0 20px}
+.usage-facts>div {
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  border-bottom:1px solid #29314e;
+  padding:12px 0;
+  font-size:13px}
+.usage-facts dt {
+  color:#b4bedb;
+  text-transform:capitalize;
+  overflow-wrap:anywhere}
+.usage-facts dd {
+  font-weight:650;
+  text-align:right;
+  flex-shrink:0}
+.usage-tableWrap {
+  overflow-x:auto}
+.usage-dashboard table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+  text-align:left}
+.usage-dashboard th {
+  font-size:10px;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  color:#97a4cc;
+  border-bottom:1px solid #37415f;
+  padding:14px 12px;
+  white-space:nowrap}
+.usage-dashboard td {
+  border-bottom:1px solid #262f4a;
+  padding:16px 12px;
+  color:#bdc7e2}
+.usage-dashboard td strong {
+  color:#eef1ff;
+  font-weight:600}
+.usage-dashboard th:first-child,.usage-dashboard td:first-child {
+  padding-left:0}
+.usage-bar {
+  width:150px;
+  height:4px;
+  background:#28304e;
+  border-radius:4px;
+  margin-top:9px;
+  overflow:hidden}
+.usage-bar span {
+  display:block;
+  height:100%;
+  background:linear-gradient(90deg,#ffaa3b,#ff6e85);
+  border-radius:4px}
+.usage-tag {
+  display:inline-block;
+  font-size:9px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  border:1px solid #445071;
+  border-radius:6px;
+  padding:3px 6px;
+  color:#c6cced;
+  margin-left:8px;
+  white-space:nowrap}
+.usage-search {
+  display:flex;
+  gap:14px;
+  align-items:center;
+  font-size:12px;
+  margin:20px 0;
+  color:#b1bcdc}
+.usage-search input {
+  width:260px;
+  max-width:100%}
+.usage-empty {
+  text-align:center;
+  padding:24px 10px;
+  color:#9ba8cc;
+  font-size:13px}
+.usage-legend {
+  display:flex;
+  gap:14px;
+  font-size:11px;
+  color:#b1bbd8;
+  margin-bottom:20px}
+.usage-chart {
+  height:200px;
+  display:flex;
+  align-items:stretch;
+  gap:3px;
+  border-bottom:1px solid #323b58}
+.usage-day {
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end}
+.usage-bars {
+  height:170px;
+  display:flex;
+  gap:2px;
+  align-items:flex-end;
+  justify-content:center}
+.usage-bars span {
+  display:block;
+  width:42%;
+  min-height:1px;
+  background:#ffa63e;
+  border-radius:3px 3px 0 0}
+.usage-bars span+span {
+  background:#9a79fa}
+.usage-day small {
+  font-size:9px;
+  color:#9aa8cd;
+  white-space:nowrap;
+  transform:rotate(-35deg);
+  height:25px;
+  padding-top:8px}
+.usage-day:nth-child(even) small {
+  visibility:hidden}
+.usage-chart:has(.usage-day:nth-child(40)) .usage-day:not(:nth-child(10n+1)) small {
+  visibility:hidden}
+.usage-recent {
+  list-style:none;
+  padding:0;
+  max-height:310px;
+  overflow:auto}
+.usage-recent li {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid #29314e;
+  padding:12px 0;
+  font-size:13px}
+.usage-recent small {
+  display:block;
+  color:#9ba7cb;
+  font-size:11px;
+  margin-top:4px}
+.usage-footer {
+  color:#97a4c9;
+  font-size:12px;
+  line-height:1.7}
+.usage-footer a {
+  text-decoration:underline;
+  margin-left:8px}
+.usage-error {
+  background:#4c2337;
+  padding:16px;
+  border-radius:12px}
+.usage-login {
+  max-width:480px;
+  margin:50px auto;
+  background:#171d39;
+  border:1px solid #374164;
+  border-radius:20px;
+  padding:32px}
+.usage-login h2 {
+  font-size:26px;
+  font-weight:700;
+  margin-bottom:12px}
+.usage-login>p {
+  font-size:13px;
+  color:#abb6d8;
+  line-height:1.6;
+  margin-bottom:16px}
+.usage-login form {
+  display:flex;
+  flex-direction:column;
+  gap:16px}
+.usage-login label {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  font-size:12px}
+.usage-login .usage-primary {
+  background:#ffad3d;
+  color:#201506;
+  font-weight:750;
+  border-color:#ffad3d}
+.usage-login form+p {
+  margin-top:16px}
+
+@media(max-width:800px) {
+  .usage-metrics {
+  grid-template-columns:repeat(2,minmax(0,1fr))}
+.usage-twoCols {
+  grid-template-columns:1fr}
+.usage-actions {
+  flex-wrap:wrap}
+.usage-dashboard {
+  padding:28px 16px}
+.usage-panel {
+  padding:18px}
+.usage-statusline>span:last-child {
+  width:100%;
+  margin-left:0}
+.usage-panelHead {
+  align-items:flex-start}
+.usage-panelHead>.usage-note {
+  display:none}
+}
+
+@media(max-width:420px) {
+  .usage-metric {
+  padding:16px}
+.usage-metric strong {
+  font-size:32px}
+.usage-toolbar {
+  align-items:flex-start}
+.usage-login {
+  padding:22px}
+.usage-actions>.usage-note {
+  display:none}
+.usage-search {
+  display:block}
+.usage-search input {
+  display:block;
+  margin-top:8px}
+}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bungee } from "next/font/google";
 import "./globals.css";
+import { UsageTracker } from "./components/UsageTracker";
 
 // Display font for signs, stamps and rank badges only. Codes, timers and
 // scores stay monospace; prompts, names and buttons stay in the system font.
@@ -40,6 +41,7 @@ export default function RootLayout({
     <html lang="en" className={`h-full antialiased ${display.variable}`} suppressHydrationWarning>
       <body className="min-h-screen flex flex-col">
         <script dangerouslySetInnerHTML={{ __html: RM_SCRIPT }} />
+        <UsageTracker />
         {children}
       </body>
     </html>

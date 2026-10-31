@@ -1,0 +1,9 @@
+"use client";
+import { useSyncExternalStore } from "react";
+import Link from "next/link";
+const subscribe = (callback: () => void) => { window.addEventListener("usage-preference",callback); return () => window.removeEventListener("usage-preference",callback); };
+export default function Privacy() {
+ const optedOut = useSyncExternalStore(subscribe, () => {try{return localStorage.getItem("arcade-usage-optout")==="1";}catch{return true;}}, () => false);
+ function toggle() { try {localStorage.setItem("arcade-usage-optout",optedOut?"0":"1"); window.dispatchEvent(new Event("usage-preference"));}catch{} }
+ return <main className="mx-auto w-full max-w-2xl space-y-6 px-5 py-12"><Link href="/" className="text-glow">← Arcade</Link><h1 className="font-display text-2xl">Usage &amp; privacy</h1><p>Steve and Mike use a private dashboard to understand which games people enjoy and where the site needs work.</p><p>We count page visits, game-link clicks, device categories, and general error counts. A random browser identifier helps count return visits. We don’t record precise location, IP addresses in our analytics tables, game answers, or error-message contents.</p><p>Names entered when joining a game are visible in the dashboard alongside games joined and join dates. Names are self-entered and aren’t verified identities. Turning off visit analytics doesn’t remove the room and player records needed to run games.</p><p>External games run on their own sites. We can count clicks to them but can’t see their gameplay here. Browser identifiers may change when you switch devices or clear storage.</p><button className="rounded-xl border border-violet px-4 py-3" onClick={toggle}>{optedOut ? "Turn visit analytics on" : "Turn visit analytics off"}</button><p role="status" className="text-fog">Visit analytics are {optedOut ? "off" : "on"} in this browser. We also respect your browser’s Do Not Track setting.</p></main>;
+}
