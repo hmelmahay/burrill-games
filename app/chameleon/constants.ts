@@ -1,10 +1,12 @@
 // Official Chameleon scoring: slip away undetected = 2 for the chameleon;
 // caught but guess the secret word = 1 for the chameleon; caught and miss
 // = 2 for everyone else. A tied vote means the room couldn't agree, and the
-// chameleon escapes.
+// chameleon escapes. House rule on top: every player who voted for the
+// chameleon gets a point for spotting them, whatever the outcome.
 export const ESCAPE_POINTS = 2;
 export const CAUGHT_BUT_GUESSED_POINTS = 1;
 export const CATCHERS_POINTS = 2;
+export const SPOTTER_POINTS = 1;
 
 export type ChamRound = {
   chameleon_id: string;

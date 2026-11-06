@@ -22,6 +22,7 @@ import {
   ESCAPE_POINTS,
   CAUGHT_BUT_GUESSED_POINTS,
   CATCHERS_POINTS,
+  SPOTTER_POINTS,
   ChamRound,
   ChamResult,
   ChamPhaseData,
@@ -54,6 +55,18 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
       s.player_id === round?.chameleon_id &&
       (s.payload as { guess?: number }).guess != null,
   );
+  // Players who voted for the chameleon this round. Each earns a spotter
+  // point on top of the round's outcome points.
+  const spotters = new Set(
+    votes
+      .filter(
+        (v) =>
+          v.player_id !== round?.chameleon_id &&
+          (v.payload as { vote?: string }).vote === round?.chameleon_id,
+      )
+      .map((v) => v.player_id),
+  );
+  const spotterBonus = (id: string) => (spotters.has(id) ? SPOTTER_POINTS : 0);
 
   async function startGame() {
     if (!room) return;
@@ -125,7 +138,7 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
     const results: ChamResult[] = players.map((p) => ({
       player_id: p.id,
       name: p.name,
-      gained: p.id === round.chameleon_id ? ESCAPE_POINTS : 0,
+      gained: p.id === round.chameleon_id ? ESCAPE_POINTS : spotterBonus(p.id),
       wasChameleon: p.id === round.chameleon_id,
     }));
     await scoreAndReveal(results, { votes: counts, accused_id: accused, caught, guess_idx: null });
@@ -178,9 +191,7 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
           ? correct
             ? CAUGHT_BUT_GUESSED_POINTS
             : 0
-          : correct
-            ? 0
-            : CATCHERS_POINTS,
+          : (correct ? 0 : CATCHERS_POINTS) + spotterBonus(p.id),
         wasChameleon: isCham,
       };
     });
@@ -200,7 +211,7 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
     const results: ChamResult[] = players.map((p) => ({
       player_id: p.id,
       name: p.name,
-      gained: p.id === round.chameleon_id ? 0 : CATCHERS_POINTS,
+      gained: p.id === round.chameleon_id ? 0 : CATCHERS_POINTS + spotterBonus(p.id),
       wasChameleon: p.id === round.chameleon_id,
     }));
     await scoreAndReveal(results, { ...phaseData, guess_idx: null });
@@ -382,6 +393,9 @@ export default function ChameleonHost({ params }: { params: Promise<{ code: stri
                       : phaseData.guess_idx === round.secret_idx
                         ? `Caught — but guessed “${round.words[round.secret_idx]}” right! +${CAUGHT_BUT_GUESSED_POINTS}`
                         : `Caught, and guessed “${round.words[phaseData.guess_idx]}” — wrong! Everyone else +${CATCHERS_POINTS}`}
+                </p>
+                <p className="text-sm mt-1">
+                  Everyone who voted for {round.chameleon_name} +{SPOTTER_POINTS}
                 </p>
               </div>
             </Drumroll>

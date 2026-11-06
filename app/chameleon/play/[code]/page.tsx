@@ -16,6 +16,7 @@ import {
   ESCAPE_POINTS,
   CAUGHT_BUT_GUESSED_POINTS,
   CATCHERS_POINTS,
+  SPOTTER_POINTS,
   ChamRound,
   ChamPhaseData,
 } from "@/app/chameleon/constants";
@@ -125,6 +126,9 @@ export default function ChameleonPlay({ params }: { params: Promise<{ code: stri
                       : phaseData.guess_idx === round.secret_idx
                         ? `Caught, but guessed the word! +${CAUGHT_BUT_GUESSED_POINTS} for the Chameleon.`
                         : `Caught and guessed wrong — everyone else +${CATCHERS_POINTS}.`}
+                </p>
+                <p className="text-fog text-sm mt-1">
+                  Everyone who voted for {round.chameleon_name} +{SPOTTER_POINTS}
                 </p>
               </div>
             </Drumroll>
